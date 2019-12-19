@@ -15,15 +15,16 @@
 │ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF      │
 │ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.               │
 ╚────────────────────────────────────────────────────────────────────'>/dev/null
-  if [ -z "$CC" ]; then
-    CC=$(command -v clang-9) ||
-    CC=$(command -v clang-8) ||
-    CC=$(command -v clang) ||
-    CC=$(command -v gcc) ||
-    CC=$(command -v cc)
-  fi
   if ! [ "${0%.*}.exe" -nt "$0" ]; then
-    $CC -march=native -Ofast $CFLAGS -o "${0%.*}.exe" "$0" -lm || exit
+    if [ -z "$CC" ]; then
+      CC=$(command -v clang-9) ||
+      CC=$(command -v clang-8) ||
+      CC=$(command -v clang) ||
+      CC=$(command -v gcc) ||
+      CC=$(command -v cc)
+    fi
+    COPTS="-g -march=native -Ofast"
+    $CC $COPTS -o "${0%.*}.exe" "$0" -lm || exit
   fi
   exec "${0%.*}.exe" "$@"
   exit
@@ -77,33 +78,57 @@ Copyright 2019 Justine Alexandra Roberts Tunney\"");
 #include <uchar.h>
 #include <unistd.h>
 
+#define BEST 0
+#define FAST 1
+#define FASTER 2
+
+#ifndef MODE
+#if defined(__AVX2__) && defined(__FMA__)
+#define MODE BEST
+#else
+#define MODE FAST
+#endif
+#endif
+
+#if MODE == BEST
+#define MC 9u  /* log2(#) of color combos to consider */
+#define GN 35u /* # of glyphs to consider */
+#elif MODE == FAST
+#define MC 6u
+#define GN 35u
+#elif MODE == FASTER
+#define MC 4u
+#define GN 25u
+#endif
+
+#define FLOAT float
+#define FLOAT_C(X) X##f
 #define CN 3u        /* # channels (rgb) */
 #define YS 8u        /* row stride -or- block height */
 #define XS 4u        /* column stride -or- block width */
 #define GT 44u       /* total glyphs */
-#define GN (GT - 3)  /* # glyphs to consider */
-#define MC 8u        /* log2(#) colors to consider; quality/speed tradeoff */
 #define BN (YS * XS) /* # scalars in block/glyph plane */
+#define HSV 0
 
 #define PHIPRIME 0x9E3779B1u
 #define DIST(X, Y) ((X) - (Y))
 #define SQR(X) ((X) * (X))
-#define ABS(X) abs(X)
+#define ABS(X) FLOAT_C(fabs)(X)
+#define SQRT(X) FLOAT_C(sqrt)(X)
+#define MOD(X, Y) FLOAT_C(fmod)(X, Y)
 #define SAD(X, Y) ABS(DIST(X, Y)) /* faster */
 #define SSD(X, Y) SQR(DIST(X, Y)) /* better */
-#define ROUNDUP(W, K) (((W) + ((K)-1)) & ~((K)-1))
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
 #define ARRAYLEN(A) \
   ((sizeof(A) / sizeof(*(A))) / ((unsigned)!(sizeof(A) % sizeof(*(A)))))
 
-#define ORDIE(X)  \
-  do              \
-    if (!(X)) {   \
-      perror(#X); \
-      exit(1);    \
-    }             \
+#define ORDIE(X)          \
+  do                      \
+    if (!(X)) {           \
+      exit(EXIT_FAILURE); \
+    }                     \
   while (0)
 
 #define W(B, S) B##U << S
@@ -711,11 +736,11 @@ static char *btoa(char *p, int c) {
 }
 
 /*───────────────────────────────────────────────────────────────────────────│─╗
-│ derasterize § colors                                                     ─╬─│┼
+│ derasterize § scalar transcendentals                                     ─╬─│┼
 ╚────────────────────────────────────────────────────────────────────────────│*/
-
 #if (defined(__GNUC__) && !defined(__STRICT_ANSI__) && \
      (defined(__x86_64__) || defined(__i386__)))
+
 #define pow(X, Y)              \
   ({                           \
     long double St0, St1;      \
@@ -730,13 +755,31 @@ static char *btoa(char *p, int c) {
         : "0"(X), "1"(Y));     \
     St0;                       \
   })
-#endif
 
-static double frgb2linl(double x) {
-  double r1, r2;
-  r1 = x / 12.92;
-  r2 = pow((x + 0.055) / (1 + 0.055), 2.4);
-  return x <= 0.04045 ? r1 : r2;
+#define sin(X)                        \
+  ({                                  \
+    long double St0;                  \
+    asm("fsin" : "=t"(St0) : "0"(X)); \
+    St0;                              \
+  })
+
+#define cos(X)                        \
+  ({                                  \
+    long double St0;                  \
+    asm("fcos" : "=t"(St0) : "0"(X)); \
+    St0;                              \
+  })
+
+#endif
+/*───────────────────────────────────────────────────────────────────────────│─╗
+│ derasterize § colors                                                     ─╬─│┼
+╚────────────────────────────────────────────────────────────────────────────│*/
+
+static FLOAT frgb2linl(FLOAT x) {
+  FLOAT r1, r2;
+  r1 = x / FLOAT_C(12.92);
+  r2 = pow((x + FLOAT_C(0.055)) / (1 + FLOAT_C(0.055)), FLOAT_C(2.4));
+  return x < FLOAT_C(0.04045) ? r1 : r2;
 }
 
 /**
@@ -745,19 +788,81 @@ static double frgb2linl(double x) {
  * This makes subtraction look good by flattening out the bias curve
  * that PC display manufacturers like to use.
  */
-void rgb2lin(unsigned char *o, const unsigned char *u, unsigned n) {
+void rgb2lin(FLOAT f[CN * BN], const unsigned char u[CN * BN]) {
   unsigned i;
-  double *f;
-  if ((f = memalign(32, 1024 + n * sizeof(double)))) {
-    for (i = 0; i < n; ++i) f[i] = u[i];
-    for (i = 0; i < n; ++i) f[i] /= 255;
-    for (i = 0; i < n; ++i) f[i] = frgb2linl(f[i]);
-    for (i = 0; i < n; ++i) f[i] = MAX(0, MIN(1, f[i]));
-    for (i = 0; i < n; ++i) f[i] *= 255;
-    for (i = 0; i < n; ++i) o[i] = lrintf(f[i]);
-    free(f);
+  for (i = 0; i < CN * BN; ++i) f[i] = u[i];
+  for (i = 0; i < CN * BN; ++i) f[i] /= FLOAT_C(255.0);
+  for (i = 0; i < CN * BN; ++i) f[i] = frgb2linl(f[i]);
+}
+
+typedef struct {
+  long double r, g, b;
+} RGB_;
+typedef struct {
+  long double h, s, v;
+} HSV_;
+static HSV_ rgb2hsv_(RGB_ in) {
+  /* https://stackoverflow.com/a/6930407 */
+  HSV_ out;
+  long double min, max, delta;
+  min = in.r < in.g ? in.r : in.g;
+  min = min < in.b ? min : in.b;
+  max = in.r > in.g ? in.r : in.g;
+  max = max > in.b ? max : in.b;
+  out.v = max;
+  delta = max - min;
+  if (delta < 0.00001L) {
+    out.s = 0;
+    out.h = 0;
+    return out;
+  }
+  if (max > 0.0L) {
+    out.s = (delta / max);
   } else {
-    memcpy(o, u, n);
+    out.s = 0.0L;
+    out.h = NAN;
+    return out;
+  }
+  if (in.r >= max) {
+    out.h = (in.g - in.b) / delta;
+  } else if (in.g >= max) {
+    out.h = 2.0L + (in.b - in.r) / delta;
+  } else {
+    out.h = 4.0L + (in.r - in.g) / delta;
+  }
+  out.h *= 60.0L;
+  if (out.h < 0.0L) out.h += 360.0L;
+  out.h = out.h * M_PI / 180.0L;
+  out.h = sin(out.h) * out.s * out.v;
+  out.s = cos(out.h) * out.s * out.v;
+  return out;
+}
+static HSV_ rgb2lhsv_(RGB_ in) {
+  HSV_ out;
+  out = rgb2hsv_(in);
+  out.h = out.h * M_PI / 180.0L;
+  out.h = sin(out.h) * out.s * out.v;
+  out.s = cos(out.h) * out.s * out.v;
+  return out;
+}
+
+/**
+ * Convertrs standard RGB to to linearized HSV cone.
+ */
+static void rgb2lhsv(FLOAT f[CN * BN], const unsigned char u[CN * BN]) {
+  HSV_ hsv;
+  RGB_ rgb;
+  unsigned i;
+  for (i = 0; i < CN * BN; ++i) f[i] = u[i];
+  for (i = 0; i < CN * BN; ++i) f[i] /= FLOAT_C(255.0);
+  for (i = 0; i < BN; ++i) {
+    rgb.r = f[0 * CN + i];
+    rgb.g = f[1 * CN + i];
+    rgb.b = f[2 * CN + i];
+    hsv = rgb2lhsv_(rgb);
+    f[0 * CN + i] = hsv.h;
+    f[1 * CN + i] = hsv.s;
+    f[2 * CN + i] = hsv.v;
   }
 }
 
@@ -806,18 +911,18 @@ char *celltoa(char *p, struct Cell cell, struct Cell last) {
  * Picks ≤2**MC unique (bg,fg) pairs from product of lb.
  */
 unsigned combinecolors(unsigned char bf[1u << MC][2],
-                       const unsigned char lb[CN * BN]) {
+                       const unsigned char bl[CN * BN]) {
   uint64_t hv, ht[(1u << MC) * 2];
   unsigned i, j, n, b, f, h, hi, bu, fu;
   memset(ht, 0, sizeof(ht));
   for (n = b = 0; b < BN && n < (1u << MC); ++b) {
-    bu = lb[2 * BN + b] << 020 | lb[1 * BN + b] << 010 | lb[0 * BN + b];
+    bu = bl[2 * BN + b] << 020 | bl[1 * BN + b] << 010 | bl[0 * BN + b];
     hi = 0;
     hi = (((bu >> 000) & 0xff) + hi) * PHIPRIME;
     hi = (((bu >> 010) & 0xff) + hi) * PHIPRIME;
     hi = (((bu >> 020) & 0xff) + hi) * PHIPRIME;
     for (f = b + 1; f < BN && n < (1u << MC); ++f) {
-      fu = lb[2 * BN + f] << 020 | lb[1 * BN + f] << 010 | lb[0 * BN + f];
+      fu = bl[2 * BN + f] << 020 | bl[1 * BN + f] << 010 | bl[0 * BN + f];
       h = hi;
       h = (((fu >> 000) & 0xff) + h) * PHIPRIME;
       h = (((fu >> 010) & 0xff) + h) * PHIPRIME;
@@ -851,19 +956,26 @@ unsigned combinecolors(unsigned char bf[1u << MC][2],
 /**
  * Computes distance between synthetic block and actual.
  */
-unsigned adjudicate(unsigned b, unsigned f, unsigned g,
-                    const unsigned char lb[CN * BN]) {
-  unsigned i, k, r, fu, bu, gu;
-  unsigned char p1[BN], p2[BN];
-  r = 0;
-  gu = kGlyphs[g];
+FLOAT adjudicate(unsigned b, unsigned f, unsigned g, const FLOAT lb[CN * BN]) {
+  unsigned i, k, gu;
+  FLOAT p[BN], q[BN], fu, bu, r;
+  memset(q, 0, sizeof(q));
   for (k = 0; k < CN; ++k) {
+    gu = kGlyphs[g];
     bu = lb[k * BN + b];
     fu = lb[k * BN + f];
-    for (i = 0; i < BN; ++i) p1[i] = (gu & (1u << i)) ? fu : bu;
-    for (i = 0; i < BN; ++i) p2[i] = lb[k * BN + i];
-    for (i = 0; i < BN; ++i) r += SSD(p1[i], p2[i]);
+    for (i = 0; i < BN; ++i) p[i] = (gu & (1u << i)) ? fu : bu;
+    for (i = 0; i < BN; ++i) p[i] -= lb[k * BN + i];
+    if (HSV) {
+      for (i = 0; i < BN; ++i) p[i] = ABS(p[i]);
+    } else {
+      for (i = 0; i < BN; ++i) p[i] *= p[i];
+    }
+    for (i = 0; i < BN; ++i) q[i] += p[i];
   }
+  r = 0;
+  for (i = 0; i < BN; ++i) q[i] = SQRT(q[i]);
+  for (i = 0; i < BN; ++i) r += q[i];
   return r;
 }
 
@@ -872,10 +984,15 @@ unsigned adjudicate(unsigned b, unsigned f, unsigned g,
  */
 struct Cell derasterize(unsigned char block[CN * BN]) {
   struct Cell cell;
-  unsigned n, b, f, g, i, best, r;
-  unsigned char lb[CN * BN], bf[1u << MC][2];
-  rgb2lin(lb, block, ARRAYLEN(lb));
-  n = combinecolors(bf, lb);
+  FLOAT r, best, lb[CN * BN];
+  unsigned i, n, b, f, g;
+  unsigned char bf[1u << MC][2];
+  if (HSV) {
+    rgb2lhsv(lb, block);
+  } else {
+    rgb2lin(lb, block);
+  }
+  n = combinecolors(bf, block);
   best = -1u;
   cell.rune = 0;
   for (i = 0; i < n; ++i) {
@@ -949,7 +1066,7 @@ char *RenderImage(char *vt, const unsigned char *rgb, unsigned yn,
 
 void PrintImage(void *rgb, unsigned yn, unsigned xn) {
   char *v, *vt;
-  vt = malloc(yn * (xn * (32 + (2 + (1 + 3) * 3) * 2 + 1 + 3)) * 1 + 5 + 1);
+  vt = valloc(yn * (xn * (32 + (2 + (1 + 3) * 3) * 2 + 1 + 3)) * 1 + 5 + 1);
   v = RenderImage(vt, rgb, yn, xn);
   *v++ = '\r';
   *v++ = 033;
@@ -981,7 +1098,6 @@ void ReadAll(int fd, char *p, size_t n) {
     ORDIE((rc = read(fd, p, n)) != -1);
     got = rc;
     if (!got && n) {
-      fprintf(stderr, "error: expected eof\n");
       exit(EXIT_FAILURE);
     }
     p += got;
@@ -1004,7 +1120,7 @@ unsigned char *LoadImageOrDie(char *path, unsigned yn, unsigned xn) {
     _exit(EXIT_FAILURE);
   }
   close(rw[1]);
-  ORDIE((rgb = malloc((size = yn * YS * xn * XS * 3))));
+  ORDIE((rgb = valloc((size = yn * YS * xn * XS * CN))));
   ReadAll(rw[0], rgb, size);
   ORDIE(close(rw[0]) != -1);
   ORDIE(waitpid(pid, &ws, 0) != -1);
@@ -1017,7 +1133,6 @@ int main(int argc, char *argv[]) {
   void *rgb;
   unsigned yn, xn;
   btoa(0, 0);
-  setlocale(LC_ALL, "C.UTF-8");
   GetTermSize(&yn, &xn);
   for (i = 1; i < argc; ++i) {
     rgb = LoadImageOrDie(argv[i], yn, xn);
