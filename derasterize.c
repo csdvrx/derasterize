@@ -108,16 +108,12 @@ Copyright 2019 Justine Alexandra Roberts Tunney\"");
 #define XS 4u        /* column stride -or- block width */
 #define GT 44u       /* total glyphs */
 #define BN (YS * XS) /* # scalars in block/glyph plane */
-#define HSV 0
 
 #define PHIPRIME 0x9E3779B1u
-#define DIST(X, Y) ((X) - (Y))
 #define SQR(X) ((X) * (X))
 #define ABS(X) FLOAT_C(fabs)(X)
 #define SQRT(X) FLOAT_C(sqrt)(X)
 #define MOD(X, Y) FLOAT_C(fmod)(X, Y)
-#define SAD(X, Y) ABS(DIST(X, Y)) /* faster */
-#define SSD(X, Y) SQR(DIST(X, Y)) /* better */
 #define MIN(x, y) ((x) < (y) ? (x) : (y))
 #define MAX(x, y) ((x) > (y) ? (x) : (y))
 
@@ -736,49 +732,25 @@ static char *btoa(char *p, int c) {
 }
 
 /*───────────────────────────────────────────────────────────────────────────│─╗
-│ derasterize § scalar transcendentals                                     ─╬─│┼
-╚────────────────────────────────────────────────────────────────────────────│*/
-#if (defined(__GNUC__) && !defined(__STRICT_ANSI__) && \
-     (defined(__x86_64__) || defined(__i386__)))
-
-#define pow(X, Y)              \
-  ({                           \
-    long double St0, St1;      \
-    asm("fyl2x\n\t"            \
-        "fld1\n\t"             \
-        "fld\t%1\n\t"          \
-        "fprem\n\t"            \
-        "f2xm1\n\t"            \
-        "faddp\n\t"            \
-        "fscale"               \
-        : "=t"(St0), "=u"(St1) \
-        : "0"(X), "1"(Y));     \
-    St0;                       \
-  })
-
-#define sin(X)                        \
-  ({                                  \
-    long double St0;                  \
-    asm("fsin" : "=t"(St0) : "0"(X)); \
-    St0;                              \
-  })
-
-#define cos(X)                        \
-  ({                                  \
-    long double St0;                  \
-    asm("fcos" : "=t"(St0) : "0"(X)); \
-    St0;                              \
-  })
-
-#endif
-/*───────────────────────────────────────────────────────────────────────────│─╗
 │ derasterize § colors                                                     ─╬─│┼
 ╚────────────────────────────────────────────────────────────────────────────│*/
+
+static FLOAT pow24(FLOAT x) {
+  FLOAT x2, x3, x4;
+  x2 = x * x;
+  x3 = x * x * x;
+  x4 = x * x * x * x;
+  return FLOAT_C(0.0985766365536824) + FLOAT_C(0.839474952656502) * x2 +
+         FLOAT_C(0.363287814061725) * x3 -
+         FLOAT_C(0.0125559718896615) /
+             (FLOAT_C(0.12758338921578) + FLOAT_C(0.290283465468235) * x) -
+         FLOAT_C(0.231757513261358) * x - FLOAT_C(0.0395365717969074) * x4;
+}
 
 static FLOAT frgb2linl(FLOAT x) {
   FLOAT r1, r2;
   r1 = x / FLOAT_C(12.92);
-  r2 = pow((x + FLOAT_C(0.055)) / (1 + FLOAT_C(0.055)), FLOAT_C(2.4));
+  r2 = pow24((x + FLOAT_C(0.055)) / (FLOAT_C(1.0) + FLOAT_C(0.055)));
   return x < FLOAT_C(0.04045) ? r1 : r2;
 }
 
@@ -793,77 +765,6 @@ void rgb2lin(FLOAT f[CN * BN], const unsigned char u[CN * BN]) {
   for (i = 0; i < CN * BN; ++i) f[i] = u[i];
   for (i = 0; i < CN * BN; ++i) f[i] /= FLOAT_C(255.0);
   for (i = 0; i < CN * BN; ++i) f[i] = frgb2linl(f[i]);
-}
-
-typedef struct {
-  long double r, g, b;
-} RGB_;
-typedef struct {
-  long double h, s, v;
-} HSV_;
-static HSV_ rgb2hsv_(RGB_ in) {
-  /* https://stackoverflow.com/a/6930407 */
-  HSV_ out;
-  long double min, max, delta;
-  min = in.r < in.g ? in.r : in.g;
-  min = min < in.b ? min : in.b;
-  max = in.r > in.g ? in.r : in.g;
-  max = max > in.b ? max : in.b;
-  out.v = max;
-  delta = max - min;
-  if (delta < 0.00001L) {
-    out.s = 0;
-    out.h = 0;
-    return out;
-  }
-  if (max > 0.0L) {
-    out.s = (delta / max);
-  } else {
-    out.s = 0.0L;
-    out.h = NAN;
-    return out;
-  }
-  if (in.r >= max) {
-    out.h = (in.g - in.b) / delta;
-  } else if (in.g >= max) {
-    out.h = 2.0L + (in.b - in.r) / delta;
-  } else {
-    out.h = 4.0L + (in.r - in.g) / delta;
-  }
-  out.h *= 60.0L;
-  if (out.h < 0.0L) out.h += 360.0L;
-  out.h = out.h * M_PI / 180.0L;
-  out.h = sin(out.h) * out.s * out.v;
-  out.s = cos(out.h) * out.s * out.v;
-  return out;
-}
-static HSV_ rgb2lhsv_(RGB_ in) {
-  HSV_ out;
-  out = rgb2hsv_(in);
-  out.h = out.h * M_PI / 180.0L;
-  out.h = sin(out.h) * out.s * out.v;
-  out.s = cos(out.h) * out.s * out.v;
-  return out;
-}
-
-/**
- * Convertrs standard RGB to to linearized HSV cone.
- */
-static void rgb2lhsv(FLOAT f[CN * BN], const unsigned char u[CN * BN]) {
-  HSV_ hsv;
-  RGB_ rgb;
-  unsigned i;
-  for (i = 0; i < CN * BN; ++i) f[i] = u[i];
-  for (i = 0; i < CN * BN; ++i) f[i] /= FLOAT_C(255.0);
-  for (i = 0; i < BN; ++i) {
-    rgb.r = f[0 * CN + i];
-    rgb.g = f[1 * CN + i];
-    rgb.b = f[2 * CN + i];
-    hsv = rgb2lhsv_(rgb);
-    f[0 * CN + i] = hsv.h;
-    f[1 * CN + i] = hsv.s;
-    f[2 * CN + i] = hsv.v;
-  }
 }
 
 /*───────────────────────────────────────────────────────────────────────────│─╗
@@ -966,11 +867,7 @@ FLOAT adjudicate(unsigned b, unsigned f, unsigned g, const FLOAT lb[CN * BN]) {
     fu = lb[k * BN + f];
     for (i = 0; i < BN; ++i) p[i] = (gu & (1u << i)) ? fu : bu;
     for (i = 0; i < BN; ++i) p[i] -= lb[k * BN + i];
-    if (HSV) {
-      for (i = 0; i < BN; ++i) p[i] = ABS(p[i]);
-    } else {
-      for (i = 0; i < BN; ++i) p[i] *= p[i];
-    }
+    for (i = 0; i < BN; ++i) p[i] *= p[i];
     for (i = 0; i < BN; ++i) q[i] += p[i];
   }
   r = 0;
@@ -987,11 +884,7 @@ struct Cell derasterize(unsigned char block[CN * BN]) {
   FLOAT r, best, lb[CN * BN];
   unsigned i, n, b, f, g;
   unsigned char bf[1u << MC][2];
-  if (HSV) {
-    rgb2lhsv(lb, block);
-  } else {
-    rgb2lin(lb, block);
-  }
+  rgb2lin(lb, block);
   n = combinecolors(bf, block);
   best = -1u;
   cell.rune = 0;
