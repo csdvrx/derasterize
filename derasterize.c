@@ -60,6 +60,7 @@ Copyright 2019 Justine Alexandra Roberts Tunney\"");
 #endif
 #include <assert.h>
 #include <fcntl.h>
+#include <fenv.h>
 #include <limits.h>
 #include <locale.h>
 #include <malloc.h>
@@ -80,19 +81,19 @@ Copyright 2019 Justine Alexandra Roberts Tunney\"");
 #define YS 8u        /* row stride -or- block height */
 #define XS 4u        /* column stride -or- block width */
 #define GT 44u       /* total glyphs */
-#define GN GT        /* # glyphs to consider */
-#define MC 7u        /* log2(#) colors to consider; quality/speed tradeoff */
+#define GN (GT - 3)  /* # glyphs to consider */
+#define MC 8u        /* log2(#) colors to consider; quality/speed tradeoff */
 #define BN (YS * XS) /* # scalars in block/glyph plane */
 
-#define PHIPRIME      0x9E3779B1u
-#define DIST(X, Y)    ((X) - (Y))
-#define SQR(X)        ((X) * (X))
-#define ABS(X)        abs(X)
-#define SAD(X, Y)     ABS(DIST(X, Y)) /* faster */
-#define SSD(X, Y)     SQR(DIST(X, Y)) /* better */
+#define PHIPRIME 0x9E3779B1u
+#define DIST(X, Y) ((X) - (Y))
+#define SQR(X) ((X) * (X))
+#define ABS(X) abs(X)
+#define SAD(X, Y) ABS(DIST(X, Y)) /* faster */
+#define SSD(X, Y) SQR(DIST(X, Y)) /* better */
 #define ROUNDUP(W, K) (((W) + ((K)-1)) & ~((K)-1))
-#define MIN(x, y)     ((x) < (y) ? (x) : (y))
-#define MAX(x, y)     ((x) > (y) ? (x) : (y))
+#define MIN(x, y) ((x) < (y) ? (x) : (y))
+#define MAX(x, y) ((x) > (y) ? (x) : (y))
 
 #define ARRAYLEN(A) \
   ((sizeof(A) / sizeof(*(A))) / ((unsigned)!(sizeof(A) % sizeof(*(A)))))
@@ -713,22 +714,29 @@ static char *btoa(char *p, int c) {
 │ derasterize § colors                                                     ─╬─│┼
 ╚────────────────────────────────────────────────────────────────────────────│*/
 
-static float pow24(float x) {
-  float x2, x3, x4;
-  x2 = x * x;
-  x3 = x * x * x;
-  x4 = x * x * x * x;
-  return 0.0985766365536824f + 0.839474952656502f * x2 +
-         0.363287814061725f * x3 -
-         0.0125559718896615f / (0.12758338921578f + 0.290283465468235f * x) -
-         0.231757513261358f * x - 0.0395365717969074f * x4;
-}
+#if (defined(__GNUC__) && !defined(__STRICT_ANSI__) && \
+     (defined(__x86_64__) || defined(__i386__)))
+#define pow(X, Y)              \
+  ({                           \
+    long double St0, St1;      \
+    asm("fyl2x\n\t"            \
+        "fld1\n\t"             \
+        "fld\t%1\n\t"          \
+        "fprem\n\t"            \
+        "f2xm1\n\t"            \
+        "faddp\n\t"            \
+        "fscale"               \
+        : "=t"(St0), "=u"(St1) \
+        : "0"(X), "1"(Y));     \
+    St0;                       \
+  })
+#endif
 
-static float rgb2linf(float x) {
-  float r1, r2;
-  r1 = x / 12.92f;
-  r2 = pow24((x + 0.055f) / (1 + 0.055f));
-  return x <= 0.04045f ? r1 : r2;
+static double frgb2linl(double x) {
+  double r1, r2;
+  r1 = x / 12.92;
+  r2 = pow((x + 0.055) / (1 + 0.055), 2.4);
+  return x <= 0.04045 ? r1 : r2;
 }
 
 /**
@@ -738,13 +746,15 @@ static float rgb2linf(float x) {
  * that PC display manufacturers like to use.
  */
 void rgb2lin(unsigned char *o, const unsigned char *u, unsigned n) {
-  float *f;
   unsigned i;
-  if ((f = (float *)memalign(32, n * sizeof(float)))) {
-    for (i = 0; i < n; ++i) f[i] = u[i] / 255.0f;
-    for (i = 0; i < n; ++i) f[i] = rgb2linf(f[i]);
-    for (i = 0; i < n; ++i) f[i] = MAX(0.0f, MIN(1.0f, f[i]));
-    for (i = 0; i < n; ++i) o[i] = roundf(f[i] * 255.0f);
+  double *f;
+  if ((f = memalign(32, 1024 + n * sizeof(double)))) {
+    for (i = 0; i < n; ++i) f[i] = u[i];
+    for (i = 0; i < n; ++i) f[i] /= 255;
+    for (i = 0; i < n; ++i) f[i] = frgb2linl(f[i]);
+    for (i = 0; i < n; ++i) f[i] = MAX(0, MIN(1, f[i]));
+    for (i = 0; i < n; ++i) f[i] *= 255;
+    for (i = 0; i < n; ++i) o[i] = lrintf(f[i]);
     free(f);
   } else {
     memcpy(o, u, n);
@@ -946,8 +956,7 @@ void PrintImage(void *rgb, unsigned yn, unsigned xn) {
   *v++ = '[';
   *v++ = '0';
   *v++ = 'm';
-  fwrite(vt, v - vt, 1, stdout);
-  fflush(stdout);
+  write(1, vt, v - vt);
   free(vt);
 }
 
