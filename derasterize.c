@@ -59,7 +59,6 @@ __asm__(".ident\t\"\\n\\n\
 derasterize (ISC License)\\n\
 Copyright 2019 Justine Alexandra Roberts Tunney\"");
 #endif
-#include <assert.h>
 #include <fcntl.h>
 #include <fenv.h>
 #include <limits.h>
@@ -83,7 +82,7 @@ Copyright 2019 Justine Alexandra Roberts Tunney\"");
 #define FASTER 2
 
 #ifndef MODE
-#if defined(__AVX2__) && defined(__FMA__)
+#ifdef __AVX2__
 #define MODE BEST
 #else
 #define MODE FAST
@@ -632,8 +631,7 @@ static const char16_t kRunes[GT] = {
  * @return [0,31)
  */
 static unsigned bsr(unsigned x) {
-#if (defined(__GNUC__) && !defined(__STRICT_ANSI__) && \
-     (defined(__x86_64__) || defined(__i386__)))
+#if -__STRICT_ANSI__ + !!(__GNUC__ + 0) && (__i386__ + __x86_64__ + 0)
   asm("bsr\t%1,%0" : "=r"(x) : "r"(x) : "cc");
 #else
   static const unsigned char kDebruijn[32] = {
@@ -760,7 +758,7 @@ static FLOAT frgb2linl(FLOAT x) {
  * This makes subtraction look good by flattening out the bias curve
  * that PC display manufacturers like to use.
  */
-void rgb2lin(FLOAT f[CN * BN], const unsigned char u[CN * BN]) {
+static void rgb2lin(FLOAT f[CN * BN], const unsigned char u[CN * BN]) {
   unsigned i;
   for (i = 0; i < CN * BN; ++i) f[i] = u[i];
   for (i = 0; i < CN * BN; ++i) f[i] /= FLOAT_C(255.0);
@@ -779,7 +777,7 @@ struct Cell {
 /**
  * Serializes ANSI background, foreground, and UNICODE glyph to wire.
  */
-char *celltoa(char *p, struct Cell cell, struct Cell last) {
+static char *celltoa(char *p, struct Cell cell, struct Cell last) {
   *p++ = 033;
   *p++ = '[';
   *p++ = '4';
@@ -811,8 +809,8 @@ char *celltoa(char *p, struct Cell cell, struct Cell last) {
 /**
  * Picks ≤2**MC unique (bg,fg) pairs from product of lb.
  */
-unsigned combinecolors(unsigned char bf[1u << MC][2],
-                       const unsigned char bl[CN * BN]) {
+static unsigned combinecolors(unsigned char bf[1u << MC][2],
+                              const unsigned char bl[CN * BN]) {
   uint64_t hv, ht[(1u << MC) * 2];
   unsigned i, j, n, b, f, h, hi, bu, fu;
   memset(ht, 0, sizeof(ht));
@@ -857,7 +855,8 @@ unsigned combinecolors(unsigned char bf[1u << MC][2],
 /**
  * Computes distance between synthetic block and actual.
  */
-FLOAT adjudicate(unsigned b, unsigned f, unsigned g, const FLOAT lb[CN * BN]) {
+static FLOAT adjudicate(unsigned b, unsigned f, unsigned g,
+                        const FLOAT lb[CN * BN]) {
   unsigned i, k, gu;
   FLOAT p[BN], q[BN], fu, bu, r;
   memset(q, 0, sizeof(q));
@@ -879,7 +878,7 @@ FLOAT adjudicate(unsigned b, unsigned f, unsigned g, const FLOAT lb[CN * BN]) {
 /**
  * Converts tiny bitmap graphic into unicode glyph.
  */
-struct Cell derasterize(unsigned char block[CN * BN]) {
+static struct Cell derasterize(unsigned char block[CN * BN]) {
   struct Cell cell;
   FLOAT r, best, lb[CN * BN];
   unsigned i, n, b, f, g;
@@ -906,7 +905,6 @@ struct Cell derasterize(unsigned char block[CN * BN]) {
       }
     }
   }
-  assert(cell.rune);
   return cell;
 }
 
@@ -917,8 +915,8 @@ struct Cell derasterize(unsigned char block[CN * BN]) {
 /**
  * Turns packed 8-bit RGB graphic into ANSI UNICODE text.
  */
-char *RenderImage(char *vt, const unsigned char *rgb, unsigned yn,
-                  unsigned xn) {
+static char *RenderImage(char *vt, const unsigned char *rgb, unsigned yn,
+                         unsigned xn) {
   char *v;
   struct Cell c1, c2;
   unsigned y, x, i, j, k, w;
@@ -957,7 +955,7 @@ char *RenderImage(char *vt, const unsigned char *rgb, unsigned yn,
 │ derasterize § systems                                                    ─╬─│┼
 ╚────────────────────────────────────────────────────────────────────────────│*/
 
-void PrintImage(void *rgb, unsigned yn, unsigned xn) {
+static void PrintImage(void *rgb, unsigned yn, unsigned xn) {
   char *v, *vt;
   vt = valloc(yn * (xn * (32 + (2 + (1 + 3) * 3) * 2 + 1 + 3)) * 1 + 5 + 1);
   v = RenderImage(vt, rgb, yn, xn);
@@ -973,7 +971,7 @@ void PrintImage(void *rgb, unsigned yn, unsigned xn) {
 /**
  * Determines dimensions of teletypewriter.
  */
-void GetTermSize(unsigned *out_rows, unsigned *out_cols) {
+static void GetTermSize(unsigned *out_rows, unsigned *out_cols) {
   struct winsize ws;
   ws.ws_row = 24;
   ws.ws_col = 80;
@@ -984,7 +982,7 @@ void GetTermSize(unsigned *out_rows, unsigned *out_cols) {
   *out_cols = ws.ws_col;
 }
 
-void ReadAll(int fd, char *p, size_t n) {
+static void ReadAll(int fd, char *p, size_t n) {
   ssize_t rc;
   size_t got;
   do {
@@ -998,7 +996,7 @@ void ReadAll(int fd, char *p, size_t n) {
   } while (n);
 }
 
-unsigned char *LoadImageOrDie(char *path, unsigned yn, unsigned xn) {
+static unsigned char *LoadImageOrDie(char *path, unsigned yn, unsigned xn) {
   void *rgb;
   size_t size;
   int pid, ws, rw[2];
