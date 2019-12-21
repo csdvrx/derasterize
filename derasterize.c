@@ -1,7 +1,7 @@
 /*bin/echo  ' -*- mode:c;indent-tabs-mode:nil;c-basic-offset:2;coding:utf-8 -*-│
 │vi: set net ft=c ts=2 sts=2 sw=2 fenc=utf-8                                :vi│
 ╞══════════════════════════════════════════════════════════════════════════════╡
-│ Copyright 2019 Justine Alexandra Roberts Tunney                              │
+│ Copyright 2019 Csdvrx & Justine Alexandra Roberts Tunney                     │
 │                                                                              │
 │ Permission to use, copy, modify, and/or distribute this software for any     │
 │ purpose with or without fee is hereby granted, provided that the above       │
@@ -14,8 +14,17 @@
 │ WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN        │
 │ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF      │
 │ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.               │
+╞══════════════════════════════════════════════════════════════════════════════╡
+│ To use this, install a compiler and (for now) imagemagick:                   │
+│  apt install build-essential imagemagick                                     │
+│                                                                              │
+│ Then make this file executable or run it with sh:                            │
+│  chmod +x derasterize.c                                                      │
+│  sh derasterize.c -y10 -x10 samples/wave.png                                 │
+│                                                                              │
+│ You can use the c file directly: the blub below recompiles when needed.      │
 ╚────────────────────────────────────────────────────────────────────'>/dev/null
-  if ! [ "${0%.*}.exe" -nt "$0" ]; then
+  if ! [ "${0%.*}" -nt "$0" ]; then
     if [ -z "$CC" ]; then
       CC=$(command -v clang-9) ||
       CC=$(command -v clang-8) ||
@@ -24,40 +33,52 @@
       CC=$(command -v cc)
     fi
     COPTS="-g -march=native -Ofast"
-    $CC $COPTS -o "${0%.*}.exe" "$0" -lm || exit
+    $CC $COPTS -o "${0%.*}" "$0" -lm || exit
   fi
-  exec "${0%.*}.exe" "$@"
+  exec ./"${0%.*}" "$@"
   exit
 
-NAME
-
-  derasterize - textmode supremacy
-
-SYNOPSIS
-
-  derasterize [PNG|JPG|ETC]...
-
-DESCRIPTION
-
-  This script converts things like photographs into UNICODE text with
-  ANSI colors for display within a terminal. It performs lots of AVX2
-  optimized math to deliver the best quality on modern terminals with
-  24-bit color support, e.g. Kitty, Gnome Terminal, CMD.EXE, etc.
-
-EXAMPLES
-
-  $ apt install build-essential imagemagick
-  $ ./derasterize.c lemur.png
-
-AUTHORS
-
-  Justine Tunney <jtunney@gmail.com>
-
 */
+
+#define HELPTEXT "\n\
+NAME\n\
+\n\
+  derasterize - convert pictures to text using unicode ANSI art\n\
+\n\
+SYNOPSIS\n\
+\n\
+  derasterize [PNG|JPG|ETC]...\n\
+\n\
+DESCRIPTION\n\
+\n\
+  This program converts pictures into unicode text and ANSI colors so\n\
+  that images can be displayed within a terminal. It performs lots of\n\
+  AVX2 optimized math to deliver the best quality on modern terminals\n\
+  with 24-bit color support, e.g. Kitty, Gnome Terminal, CMD.EXE, etc\n\
+\n\
+  The default output if fullscreen but can be changed:\n\
+  -xX\n\
+          If X is positive, hardcode the width in caracters to X\n\
+          If X is negative, remove as much from the fullscreen width\n\
+  -y\n\
+          If Y is positive, hardcode the height in caracters to Y\n\
+          If Y is negative, remove as much from the fullscreen height\n\
+\n\
+EXAMPLES\n\
+\n\
+  $ ./derasterize.c samples/wave.png > wave.uaart\n\
+  $ cat wave.uaart\n\
+\n\
+AUTHORS\n\
+\n\
+  Csdvrx <csdvrx@outlook.com>\n\
+  Justine Tunney <jtunney@gmail.com>\n\
+"
+
 #ifdef __ELF__
 __asm__(".ident\t\"\\n\\n\
 derasterize (ISC License)\\n\
-Copyright 2019 Justine Alexandra Roberts Tunney\"");
+Copyright 2019 Csdvrx & Justine Alexandra Roberts Tunney\"");
 #endif
 #include <fcntl.h>
 #include <fenv.h>
@@ -74,8 +95,9 @@ Copyright 2019 Justine Alexandra Roberts Tunney\"");
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <termios.h>
-#include <uchar.h>
 #include <unistd.h>
+// Can be missing in msys2
+#include <uchar.h>
 
 #define BEST 0
 #define FAST 1
@@ -89,8 +111,11 @@ Copyright 2019 Justine Alexandra Roberts Tunney\"");
 #endif
 #endif
 
+// TODO: we should make that runtime choices, with separate command line options for MC and GN
+
 #if MODE == BEST
 #define MC 9u  /* log2(#) of color combos to consider */
+// FIXME: shouldn't that be 44 in best? Or maybe declare mode A, mode B, etc.
 #define GN 35u /* # of glyphs to consider */
 #elif MODE == FAST
 #define MC 6u
@@ -126,6 +151,23 @@ Copyright 2019 Justine Alexandra Roberts Tunney\"");
     }                     \
   while (0)
 
+// The modes below use various unicodes for 'progresssive' pixelization:
+// each mode supersets the previous to increase resolution more and more.
+// Ideally, a fully dense mapping of the (Y*X) space defined by kGlyph size
+// would produce a picture perfect image, but at the cost of sampling speed.
+// Therefore, supersets are parcimonious: they only add the minimal set of
+// missing shapes that can increase resolution.
+// Ideally, this should be based on a study of the residual, but some logic
+// can go a long way: after some block pixelization, will need diagonals
+// FIXME: then shouldn't box drawing go right after braille?
+
+// TODO: explain the differences between each mode:
+// Mode A is full, empty, half blocks top and bottom: , █,▄,▀
+// Mode B superset: with quadrants:  ▐,▌,▝,▙,▗,▛,▖,▜,▘,▟,▞,▚,
+// Mode C superset: with fractional eights along X and Y
+//  ▁,▂,▃,▄,▅,▆,▇:█:▉,▊,▋,▌,▍,▎,▏
+// Mode X use box drawing, mode X use diagonal blocks, mode X use braille etc
+
 #define W(B, S) B##U << S
 #define G(AA, AB, AC, AD, BA, BB, BC, BD, CA, CB, CC, CD, DA, DB, DC, DD, EA, \
           EB, EC, ED, FA, FB, FC, FD, GA, GB, GC, GD, HA, HB, HC, HD)         \
@@ -137,8 +179,21 @@ Copyright 2019 Justine Alexandra Roberts Tunney\"");
    W(GB, 031) | W(GC, 032) | W(GD, 033) | W(HA, 034) | W(HB, 035) |           \
    W(HC, 036) | W(HD, 037))
 
+
+// The glyph size it set by the resolution of the most precise mode, ex:
+// - Mode C: along the X axis, need >= 8 steps for the 8 fractional width
+// FIXME: now we can only use 4 chars instead of the extra ▉,▊,▋,▌,▍,▎,▏
+//
+// - Mode X: along the Y axis, need >= 8 steps to separate the maximal 6 dots
+// from the space left below, seen by overimposing an underline  ⠿_ 
+// along the 3 dots, the Y axis is least 1,0,1,0,1,0,0,1 so 8 steps
+//
+// Problem: fonts are taller than wider, and terminals are tradionally 80x24, so
+// - we shouldn't use square glyphs, 8x16 seems to be the minimal size
+// - we should adapt the conversion to BMP to avoid accidental Y downsampling
+
 static const uint32_t kGlyphs[GT] = /* clang-format off */ {
-    /* 0020 ' ' empty block [ascii:20,cp437:20] */
+    /* U+0020 ' ' empty block [ascii:20,cp437:20] */
     G(0,0,0,0,
       0,0,0,0,
       0,0,0,0,
@@ -147,7 +202,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       0,0,0,0,
       0,0,0,0,
       0,0,0,0),
-    /* 2588 '█' full block [cp437] */
+    /* U+2588 '█' full block [cp437] */
     G(1,1,1,1,
       1,1,1,1,
       1,1,1,1,
@@ -156,7 +211,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       1,1,1,1,
       1,1,1,1,
       1,1,1,1),
-    /* 2584 '▄' lower half block [cp437:dc] */
+    /* U+2584 '▄' lower half block [cp437:dc] */
     G(0,0,0,0,
       0,0,0,0,
       0,0,0,0,
@@ -165,7 +220,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       1,1,1,1,
       1,1,1,1,
       1,1,1,1),
-    /* 2580 '▀' upper half block [cp437] */
+    /* U+2580 '▀' upper half block [cp437] */
     G(1,1,1,1,
       1,1,1,1,
       1,1,1,1,
@@ -174,7 +229,8 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       0,0,0,0,
       0,0,0,0,
       0,0,0,0),
-    /* 2590 '▐' right half block [cp437:de] */
+    // Mode B
+    /* U+2590 '▐' right half block [cp437:de] */
     G(0,0,1,1,
       0,0,1,1,
       0,0,1,1,
@@ -183,7 +239,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       0,0,1,1,
       0,0,1,1,
       0,0,1,1),
-    /* 258c '▌' left half block [cp437] */
+    /* U+258c '▌' left half block [cp437] */
     G(1,1,0,0,
       1,1,0,0,
       1,1,0,0,
@@ -192,7 +248,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       1,1,0,0,
       1,1,0,0,
       1,1,0,0),
-    /* 259d '▝' quadrant upper right */
+    /* U+259d '▝' quadrant upper right */
     G(0,0,1,1,
       0,0,1,1,
       0,0,1,1,
@@ -201,7 +257,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       0,0,0,0,
       0,0,0,0,
       0,0,0,0),
-    /* TODO '▙' */
+    /* U+TODO '▙' */
     G(1,1,0,0,
       1,1,0,0,
       1,1,0,0,
@@ -210,7 +266,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       1,1,1,1,
       1,1,1,1,
       1,1,1,0),
-    /* 2597 '▗' quadrant lower right */
+    /* U+2597 '▗' quadrant lower right */
     G(0,0,0,0,
       0,0,0,0,
       0,0,0,0,
@@ -219,7 +275,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       0,0,1,1,
       0,0,1,1,
       0,0,1,1),
-    /* TODO '▛' */
+    /* U+TODO '▛' */
     G(1,1,1,1,
       1,1,1,1,
       1,1,1,1,
@@ -228,7 +284,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       1,1,0,0,
       1,1,0,0,
       1,1,0,1),
-    /* 2596 '▖' quadrant lower left */
+    /* U+2596 '▖' quadrant lower left */
     G(0,0,0,0,
       0,0,0,0,
       0,0,0,0,
@@ -237,7 +293,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       1,1,0,0,
       1,1,0,0,
       1,1,0,0),
-    /* TODO '▜' */
+    /* U+TODO '▜' */
     G(1,1,1,1,
       1,1,1,1,
       1,1,1,1,
@@ -246,7 +302,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       0,0,1,1,
       0,0,1,1,
       0,0,1,0),
-    /* 2598 '▘' quadrant upper left */
+    /* U+2598 '▘' quadrant upper left */
     G(1,1,0,0,
       1,1,0,0,
       1,1,0,0,
@@ -255,7 +311,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       0,0,0,0,
       0,0,0,0,
       0,0,0,0),
-    /* TODO '▟' */
+    /* U+TODO '▟' */
     G(0,0,1,1,
       0,0,1,1,
       0,0,1,1,
@@ -264,7 +320,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       1,1,1,1,
       1,1,1,1,
       1,1,1,0),
-    /* 259e '▞' quadrant upper right and lower left */
+    /* U+259e '▞' quadrant upper right and lower left */
     G(0,0,1,1,
       0,0,1,1,
       0,0,1,1,
@@ -273,7 +329,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       1,1,0,0,
       1,1,0,0,
       1,1,0,0),
-    /* TODO '▚' */
+    /* U+TODO '▚' */
     G(1,1,0,0,
       1,1,0,0,
       1,1,0,0,
@@ -282,7 +338,8 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       0,0,1,1,
       0,0,1,1,
       0,0,1,0),
-    /* 2594 '▔' upper one eighth block */
+    // Mode C
+    /* U+2594 '▔' upper one eighth block */
     G(1,1,1,1,
       0,0,0,0,
       0,0,0,0,
@@ -291,7 +348,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       0,0,0,0,
       0,0,0,0,
       0,0,0,0),
-    /* 2581 '▁' lower one eighth block */
+    /* U+2581 '▁' lower one eighth block */
     G(0,0,0,0,
       0,0,0,0,
       0,0,0,0,
@@ -300,7 +357,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       0,0,0,0,
       0,0,0,0,
       1,1,1,1),
-    /* 2582 '▂' lower one quarter block */
+    /* U+2582 '▂' lower one quarter block */
     G(0,0,0,0,
       0,0,0,0,
       0,0,0,0,
@@ -309,7 +366,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       0,0,0,0,
       1,1,1,1,
       1,1,1,1),
-    /* 2583 '▃' lower three eighths block */
+    /* U+2583 '▃' lower three eighths block */
     G(0,0,0,0,
       0,0,0,0,
       0,0,0,0,
@@ -318,7 +375,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       1,1,1,1,
       1,1,1,1,
       1,1,1,1),
-    /* 2585 '▃' lower five eighths block */
+    /* U+2585 '▃' lower five eighths block */
     G(0,0,0,0,
       0,0,0,0,
       0,0,0,0,
@@ -327,7 +384,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       1,1,1,1,
       1,1,1,1,
       1,1,1,1),
-    /* 2586 '▆' lower three quarters block */
+    /* U+2586 '▆' lower three quarters block */
     G(0,0,0,0,
       0,0,0,0,
       1,1,1,1,
@@ -336,7 +393,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       1,1,1,1,
       1,1,1,1,
       1,1,1,1),
-    /* 2587 '▇' lower seven eighths block */
+    /* U+2587 '▇' lower seven eighths block */
     G(0,0,0,0,
       1,1,1,1,
       1,1,1,1,
@@ -345,7 +402,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       1,1,1,1,
       1,1,1,1,
       1,1,1,1),
-    /* 258e '▎' left one quarter block */
+    /* U+258e '▎' left one quarter block */
     G(1,0,0,0,
       1,0,0,0,
       1,0,0,0,
@@ -354,7 +411,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       1,0,0,0,
       1,0,0,0,
       1,0,0,0),
-    /* 258a '▊' left three quarters block */
+    /* U+258a '▊' left three quarters block */
     G(1,1,1,0,
       1,1,1,0,
       1,1,1,0,
@@ -733,6 +790,12 @@ static char *btoa(char *p, int c) {
 │ derasterize § colors                                                     ─╬─│┼
 ╚────────────────────────────────────────────────────────────────────────────│*/
 
+/** Perform a sRGB gamma correction by power 2.4 approximation
+ *
+ * @param x Argument, in the range 0.09 to 1.
+ * @return Value raised into power 2.4, approximate.
+ */
+
 static FLOAT pow24(FLOAT x) {
   FLOAT x2, x3, x4;
   x2 = x * x;
@@ -744,6 +807,13 @@ static FLOAT pow24(FLOAT x) {
              (FLOAT_C(0.12758338921578) + FLOAT_C(0.290283465468235) * x) -
          FLOAT_C(0.231757513261358) * x - FLOAT_C(0.0395365717969074) * x4;
 }
+
+/**
+ * Approximately linearize the sRGB gamma value.
+ *
+ * @param s sRGB gamma value, in the range 0 to 1.
+ * @return Linearized sRGB gamma value, approximated.
+ */
 
 static FLOAT frgb2linl(FLOAT x) {
   FLOAT r1, r2;
@@ -969,7 +1039,7 @@ static void PrintImage(void *rgb, unsigned yn, unsigned xn) {
 }
 
 /**
- * Determines dimensions of teletypewriter.
+ * Determines dimensions of teletypewriter to default to full screen output
  */
 static void GetTermSize(unsigned *out_rows, unsigned *out_cols) {
   struct winsize ws;
@@ -1020,15 +1090,62 @@ static unsigned char *LoadImageOrDie(char *path, unsigned yn, unsigned xn) {
 }
 
 int main(int argc, char *argv[]) {
-  int i;
+  int i, j;
+  char *option, *filename;
   void *rgb;
-  unsigned yn, xn;
-  btoa(0, 0);
-  GetTermSize(&yn, &xn);
-  for (i = 1; i < argc; ++i) {
-    rgb = LoadImageOrDie(argv[i], yn, xn);
-    PrintImage(rgb, yn, xn);
-    free(rgb);
+  unsigned yd, xd;
+  int y=0, x=0;
+
+  btoa(0, 0); // FIXME: this is needed. But why?
+
+  // Must provide at least one filename
+  if (argc < 2) {
+   printf (HELPTEXT);
+   exit (255);
   }
+
+  // Dirty option parsing without getopt
+  for (i = 1; i < argc; ++i) {
+    option= argv[i]; // option=-y12
+    switch( (int) option[0] ) {
+       case '-': // unix style
+       case '/': // dos style
+           option++; // option=y12
+           switch( (int) option[0]) {
+                 case 'x':
+                    x = atoi(++option);
+                    break;
+                 case 'y':
+                    y = atoi(++option);
+                    break;
+                 case 'h':
+                    printf (HELPTEXT);
+                    exit (1);
+                 default:
+                    printf( "Unknown option %c\n\n",  (int) option[0]);
+           } // switch
+       default:
+           filename=option;
+    } // switch
+   } //for i
+
+  // Use termize to default to full screen if no x and y are given
+  GetTermSize(&yd, &xd);
+
+  // if sizes are given, 2 cases:
+  //  - positive values: use that as the target size
+  //  - negative values: add, for ex to offset the command prompt size
+  if (y <= 0) {
+        y += yd;
+  }
+  if (x <= 0) {
+        x += xd;
+  }
+
+  // FIXME: on the conversion stage should do 2Y because of halfblocks
+  // printf( "filename >%s<\tx >%d<\ty >%d<\n\n", filename, x, y);
+  rgb = LoadImageOrDie(filename, y, x);
+  PrintImage(rgb, y, x);
+  free(rgb);
   return 0;
 }
