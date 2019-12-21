@@ -11,7 +11,7 @@ Here's how it compares to the previous best, [hiptext](https://github.com/jart/h
 
 Not so bad considering the original image is:
 
-![original snake.jpg image](snake.jpg)
+![original snake.jpg image](samples/snake.jpg)
 
 ## Getting Started
 
