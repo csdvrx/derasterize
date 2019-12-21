@@ -1,4 +1,4 @@
-Copyright 2019 Justine Alexandra Roberts Tunney
+Copyright 2019 Justine Alexandra Roberts Tunney, Charlotte Csdvrx
 
 Permission to use, copy, modify, and/or distribute this software for any
 purpose with or without fee is hereby granted, provided that the above
@@ -11,3 +11,20 @@ ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
 WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
 ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
 OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+
+The following test images in "samples/" directory are public domain:
+
+- egret.jpg
+
+    author: Jon Sullivan
+    url: http://public-domain-photos.com/animals/egret-4.htm
+
+- snake.jpg
+
+    author: Jon Sullivan
+    url: http://public-domain-photos.com/animals/snake-4.htm
+
+- vimperator3.png
+
+    author: @k_wizard
+    url: http://quadrantem.com/~k_wizard/vimprtan/
