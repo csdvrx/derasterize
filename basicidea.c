@@ -7,10 +7,10 @@
 │   • http://unlicense.org/                                                    │
 │   • http://creativecommons.org/publicdomain/zero/1.0/                        │
 ╚────────────────────────────────────────────────────────────────────'>/dev/null
-  if ! [ "${0%.*}.exe" -nt "$0" ]; then
-    cc -O -o "${0%.*}.exe" "$0" || exit
+  if ! [ "${0%.*}" -nt "$0" ]; then
+    cc -O -o "${0%.*}" "$0" || exit
   fi
-  exec "${0%.*}.exe" "$@"
+  exec "./${0%.*}" "$@"
   exit
 
 OVERVIEW
