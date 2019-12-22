@@ -165,7 +165,7 @@ Copyright 2019 Csdvrx & Justine Alexandra Roberts Tunney\"");
 // Mode A is full, empty, half blocks top and bottom: , █,▄,▀
 // Mode B superset: with quadrants:  ▐,▌,▝,▙,▗,▛,▖,▜,▘,▟,▞,▚,
 // Mode C superset: with fractional eights along X and Y
-//  ▁,▂,▃,▄,▅,▆,▇:█:▉,▊,▋,▌,▍,▎,▏
+//  _,▁,▂,▃,▄,▅,▆,▇ :█:▉,▊,▋,▌,▍,▎,▏
 // Mode X use box drawing, mode X use diagonal blocks, mode X use braille etc
 
 #define W(B, S) B##U << S
@@ -257,7 +257,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       0,0,0,0,
       0,0,0,0,
       0,0,0,0),
-    /* U+TODO '▙' */
+    /* U+2599 '▙' quadrant upper left and lower left and lower right */
     G(1,1,0,0,
       1,1,0,0,
       1,1,0,0,
@@ -275,7 +275,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       0,0,1,1,
       0,0,1,1,
       0,0,1,1),
-    /* U+TODO '▛' */
+    /* U+259b '▛' quadrant upper left and upper right and lower left */
     G(1,1,1,1,
       1,1,1,1,
       1,1,1,1,
@@ -293,7 +293,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       1,1,0,0,
       1,1,0,0,
       1,1,0,0),
-    /* U+TODO '▜' */
+    /* U+259c '▜' quadrant upper left and upper right and lower right */
     G(1,1,1,1,
       1,1,1,1,
       1,1,1,1,
@@ -311,7 +311,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       0,0,0,0,
       0,0,0,0,
       0,0,0,0),
-    /* U+TODO '▟' */
+    /* U+259F '▟' quadrant upper right and lower left and lower right */
     G(0,0,1,1,
       0,0,1,1,
       0,0,1,1,
@@ -329,7 +329,7 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       1,1,0,0,
       1,1,0,0,
       1,1,0,0),
-    /* U+TODO '▚' */
+    /* U+259a '▚' quadrant upper left and lower right */
     G(1,1,0,0,
       1,1,0,0,
       1,1,0,0,
@@ -639,15 +639,15 @@ static const char16_t kRunes[GT] = {
     u'▐', /* 2590 right half block [cp437:de] */
     u'▌', /* 258C left half block */
     u'▝', /* 259D quadrant upper right */
-    u'▙', /* TODO */
+    u'▙', /* 2599 quadrant upper left and lower left and lower right */
     u'▗', /* 2597 quadrant lower right */
-    u'▛', /* TODO */
+    u'▛', /* 259B quadrant upper left and upper right and lower left */
     u'▖', /* 2596 quadrant lower left */
-    u'▜', /* TODO */
+    u'▜', /* 259C quadrant upper left and upper right and lower right */
     u'▘', /* 2598 quadrant upper left */
-    u'▟', /* TODO */
+    u'▟', /* 259F quadrant upper right and lower left and lower right */
     u'▞', /* 259E quadrant upper right and lower left */
-    u'▚', /* TODO */
+    u'▚', /* 259A quadrant upper left and lower right */
     u'▔', /* 2594 upper one eighth block */
     u'▁', /* 2581 lower one eighth block */
     u'▂', /* 2582 lower one quarter block */
