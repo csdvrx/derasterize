@@ -1,0 +1,11 @@
+This copyright assignment (“grant”) is for the code of derasterize found on
+https://github.com/jart/derasterize/ and covers all my past and future
+contributions, and also all my past and future suggestions sent by email.
+ 
+Under this grant, I, CSDVRX place all my work in the public domain.
+ 
+I also grant Justine Tunney a perpetual right to relicense my work under any
+license of her chosing, as long as I am either A) not cited in any way (anonymous
+contributor), or B) cited as “csdvrx”
+
+By Csdvrx on Dec 19, 2019
