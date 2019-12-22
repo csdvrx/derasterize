@@ -170,7 +170,10 @@ Copyright 2019 Csdvrx & Justine Alexandra Roberts Tunney\"");
 #define XS 8u        /* column stride -or- block width */
 #define BN (YS * XS) /* # scalars in block/glyph plane */
 
-// BN plane definition in octal
+// BN plane definition in octal to avoid mistakes, generate that with bash:
+// let o=0; for y in ` echo {A..P}` ; do for x in `echo {A..H}` ; do
+// echo -n "W($y$x, " ; printf "%03o) | " $o ; let o=o+1
+// if [[ $x == "D" ]] ; then echo " \\" ; fi ; done ; echo " \\"; echo " \\"; done
 #define G(AA, AB, AC, AD, AE, AF, AG, AH, \
           BA, BB, BC, BD, BE, BF, BG, BH, \
           CA, CB, CC, CD, CE, CF, CG, CH, \
@@ -187,50 +190,56 @@ Copyright 2019 Csdvrx & Justine Alexandra Roberts Tunney\"");
           NA, NB, NC, ND, NE, NF, NG, NH, \
           OA, OB, OC, OD, OE, OF, OG, OH, \
           PA, PB, PC, PD, PE, PF, PG, PH) \
-  (W(AA, 000) | W(AB, 001) | W(AC, 002) | W(AD, 003) | \
-   W(AE, 004) | W(AF, 005) | W(AG, 006) | W(AH, 007) | \
-   W(BA, 010) | W(BB, 011) | W(BC, 012) | W(BD, 013) | \
-   W(BE, 014) | W(BF, 015) | W(BG, 016) | W(BH, 017) | \
+        (W(AA, 000) | W(AB, 001) | W(AC, 002) | W(AD, 003) |  \
+         W(AE, 004) | W(AF, 005) | W(AG, 006) | W(AH, 007) |  \
 \
-   W(CA, 020) | W(CB, 021) | W(CC, 022) | W(CD, 023) | \
-   W(CE, 024) | W(CF, 025) | W(CG, 026) | W(CH, 027) | \
-   W(DA, 030) | W(DB, 031) | W(DC, 032) | W(DD, 033) | \
-   W(DE, 034) | W(DF, 035) | W(DG, 036) | W(DH, 037) | \
+         W(BA, 010) | W(BB, 011) | W(BC, 012) | W(BD, 013) |  \
+         W(BE, 014) | W(BF, 015) | W(BG, 016) | W(BH, 017) |  \
 \
-   W(EA, 040) | W(EB, 041) | W(EC, 042) | W(ED, 043) | \
-   W(EE, 044) | W(EF, 045) | W(EG, 046) | W(EH, 047) | \
-   W(FA, 050) | W(FB, 051) | W(FC, 052) | W(FD, 053) | \
-   W(FE, 054) | W(FF, 055) | W(FG, 056) | W(FH, 057) | \
+         W(CA, 020) | W(CB, 021) | W(CC, 022) | W(CD, 023) |  \
+         W(CE, 024) | W(CF, 025) | W(CG, 026) | W(CH, 027) |  \
 \
-   W(GA, 060) | W(GB, 061) | W(GC, 062) | W(GD, 063) | \
-   W(GE, 064) | W(GF, 065) | W(GG, 066) | W(GH, 067) | \
-   W(HA, 070) | W(HB, 071) | W(HC, 072) | W(HD, 073) | \
-   W(HE, 074) | W(HF, 075) | W(HG, 076) | W(HH, 077) | \
+         W(DA, 030) | W(DB, 031) | W(DC, 032) | W(DD, 033) |  \
+         W(DE, 034) | W(DF, 035) | W(DG, 036) | W(DH, 037) |  \
 \
-   W(IA, 100) | W(IB, 101) | W(IC, 102) | W(ID, 103) | \
-   W(IE, 104) | W(IF, 105) | W(IG, 106) | W(IH, 107) | \
-   W(JA, 120) | W(JB, 121) | W(JC, 122) | W(JD, 123) | \
-   W(JE, 124) | W(JF, 125) | W(JG, 126) | W(JH, 127) | \
+         W(EA, 040) | W(EB, 041) | W(EC, 042) | W(ED, 043) |  \
+         W(EE, 044) | W(EF, 045) | W(EG, 046) | W(EH, 047) |  \
 \
-   W(KA, 130) | W(KB, 131) | W(KC, 132) | W(KD, 133) | \
-   W(KE, 134) | W(KF, 135) | W(KG, 136) | W(KH, 137) | \
-   W(LA, 140) | W(LB, 141) | W(LC, 142) | W(LD, 143) | \
-   W(LE, 144) | W(LF, 145) | W(LG, 146) | W(LH, 147) | \
+         W(FA, 050) | W(FB, 051) | W(FC, 052) | W(FD, 053) |  \
+         W(FE, 054) | W(FF, 055) | W(FG, 056) | W(FH, 057) |  \
 \
-   W(MA, 150) | W(MB, 151) | W(MC, 152) | W(MD, 153) | \
-   W(ME, 154) | W(MF, 155) | W(MG, 156) | W(MH, 157) | \
-   W(NA, 160) | W(NB, 161) | W(NC, 162) | W(ND, 163) | \
-   W(NE, 164) | W(NF, 165) | W(NG, 166) | W(NH, 167) | \
+         W(GA, 060) | W(GB, 061) | W(GC, 062) | W(GD, 063) |  \
+         W(GE, 064) | W(GF, 065) | W(GG, 066) | W(GH, 067) |  \
 \
-   W(OA, 170) | W(OB, 171) | W(OC, 172) | W(OD, 173) | \
-   W(OE, 174) | W(OF, 175) | W(OG, 176) | W(OH, 177) | \
-   W(PA, 200) | W(PB, 201) | W(PC, 202) | W(PD, 203) | \
-   W(PE, 204) | W(PF, 205) | W(PG, 206) | W(PH, 207))
-
+         W(HA, 070) | W(HB, 071) | W(HC, 072) | W(HD, 073) |  \
+         W(HE, 074) | W(HF, 075) | W(HG, 076) | W(HH, 077) |  \
+\
+         W(IA, 100) | W(IB, 101) | W(IC, 102) | W(ID, 103) |  \
+         W(IE, 104) | W(IF, 105) | W(IG, 106) | W(IH, 107) |  \
+\
+         W(JA, 110) | W(JB, 111) | W(JC, 112) | W(JD, 113) |  \
+         W(JE, 114) | W(JF, 115) | W(JG, 116) | W(JH, 117) |  \
+\
+         W(KA, 120) | W(KB, 121) | W(KC, 122) | W(KD, 123) |  \
+         W(KE, 124) | W(KF, 125) | W(KG, 126) | W(KH, 127) |  \
+\
+         W(LA, 130) | W(LB, 131) | W(LC, 132) | W(LD, 133) |  \
+         W(LE, 134) | W(LF, 135) | W(LG, 136) | W(LH, 137) |  \
+\
+         W(MA, 140) | W(MB, 141) | W(MC, 142) | W(MD, 143) |  \
+         W(ME, 144) | W(MF, 145) | W(MG, 146) | W(MH, 147) |  \
+\
+         W(NA, 150) | W(NB, 151) | W(NC, 152) | W(ND, 153) |  \
+         W(NE, 154) | W(NF, 155) | W(NG, 156) | W(NH, 157) |  \
+\
+         W(OA, 160) | W(OB, 161) | W(OC, 162) | W(OD, 163) |  \
+         W(OE, 164) | W(OF, 165) | W(OG, 166) | W(OH, 167) |  \
+\
+         W(PA, 170) | W(PB, 171) | W(PC, 172) | W(PD, 173) |  \
+         W(PE, 174) | W(PF, 175) | W(PG, 176) | W(PH, 177))
 
 // The glyph size it set by the resolution of the most precise mode, ex:
 // - Mode C: along the X axis, need >= 8 steps for the 8 fractional width
-// FIXME: now we can only use 4 chars instead of the extra ▉,▊,▋,▌,▍,▎,▏
 //
 // - Mode X: along the Y axis, need >= 8 steps to separate the maximal 6 dots
 // from the space left below, seen by overimposing an underline  ⠿_ 
@@ -1175,7 +1184,8 @@ static const char16_t kRunes[GT] = {
 ╚────────────────────────────────────────────────────────────────────────────│*/
 
 /**
- * Returns binary logarithm of integer.
+ * Returns binary logarithm of integer, following David Eberly approach of the
+ * inverse square root function 
  * @dominion 𝑥≥1 ∧ 𝑥∊ℤ
  * @return [0,31)
  */
