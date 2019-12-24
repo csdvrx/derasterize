@@ -1,7 +1,7 @@
 /*bin/echo  ' -*- mode:c;indent-tabs-mode:nil;c-basic-offset:2;coding:utf-8 -*-│
 │vi: set net ft=c ts=2 sts=2 sw=2 fenc=utf-8                                :vi│
 ╞══════════════════════════════════════════════════════════════════════════════╡
-│ Copyright 2019 Csdvrx & Justine Alexandra Roberts Tunney                     │
+│ Copyright 2019 Justine Alexandra Roberts Tunney                     │
 │                                                                              │
 │ Permission to use, copy, modify, and/or distribute this software for any     │
 │ purpose with or without fee is hereby granted, provided that the above       │
@@ -922,13 +922,43 @@ static unsigned combinecolors(unsigned char bf[1u << MC][2],
   return n;
 }
 
+// like quake fast inverse square root: not faster
+inline float fastpow1(float x) {
+#define MAGIC 0x3f800000
+  long i  = * ( long * ) &x;
+  i  =-1 * MAGIC + 2*i;
+  return * ( float * ) &i;
+}
+
+// alpha max beta min on the rgb 3 dimentional space
+// actually faster but worse quality, the blockiness can be reproduced 
+// by doing abs before squares which is illogical!!
+inline float amaxbmin (float x, float y, float z) {
+float ax=fabs(x), ay=fabs(ay), az=fabs(az);
+float sumaxyz=(ax+ay+az)/sqrt(3);
+        float amax;
+ if (ax>ay) {
+         amax=ax;  
+ } else {
+         amax=ay;
+ }
+ if (az>amax) {
+         amax=az;  
+ }
+ if (amax<sumaxyz) {
+         return amax;
+ } else {
+        return sumaxyz;
+ }
+}
+
 /**
  * Computes distance between synthetic block and actual.
  */
 static FLOAT adjudicate(unsigned b, unsigned f, unsigned g,
                         const FLOAT lb[CN * BN]) {
   unsigned i, k, gu;
-  FLOAT p[BN], q[BN], fu, bu, r;
+  FLOAT p0[BN], p1[BN], p2[BN], p[BN], q[BN], fu, bu, r;
   memset(q, 0, sizeof(q));
   for (k = 0; k < CN; ++k) {
     gu = kGlyphs[g];
@@ -936,18 +966,34 @@ static FLOAT adjudicate(unsigned b, unsigned f, unsigned g,
     fu = lb[k * BN + f];
     for (i = 0; i < BN; ++i) p[i] = (gu & (1u << i)) ? fu : bu;
     for (i = 0; i < BN; ++i) p[i] -= lb[k * BN + i];
-    // For a minimization problem, abs can do. Much faster
-    // TODO: approximate square by bit shifting 
-    for (i = 0; i < BN; ++i) p[i] = abs(p[i]);
-    //for (i = 0; i < BN; ++i) p[i] *= p[i];
-    for (i = 0; i < BN; ++i) q[i] += p[i];
+    // FIXME: doing 3 abs here cause the blockyness:
+    if (k==0) {
+     for (i = 0; i < BN; ++i) p0[i] = (p[i]);
+    }
+    if (k==1) {
+     for (i = 0; i < BN; ++i) p1[i] = (p[i]);
+    }
+    if (k==2) {
+     for (i = 0; i < BN; ++i) p2[i] = (p[i]);
+    }
   }
+
   r = 0;
+  // squaring is too slow (Euclidian distance)
+  // for (i = 0; i < BN; ++i) r += p0[i]*(p0[i]) + p1[i]*(p1[i]) +p2[i]*(p2[i]);
+  // abs is too imprecise (Manhattan distance)
+  //for (i = 0; i < BN; ++i) r += abs(p0[i]) + abs(p1[i]) +abs(p2[i]);
+  // apparently the alpha max beta min method doesn't work, because of a abs bug
+  //for (i = 0; i < BN; ++i) r += amaxbmin(p0[i], p1[i], p2[i]);
+  // FIXME: the blockyness could be a rounding error as this 1007/1024 can reproduce the issue
+  //for (i = 0; i < BN; ++i) r += (1007/1024)*(p0[i])*(p0[i]) \
+  //        + (1007/1024)*(p1[i])*(p1[i]) \
+  //        + (1007/1024)*(p2[i])*(p2[i]);
   // sqrt(x) is strictly increasing in x
   // so arg min sqrt(x) = arg min x
   // so we can go faster by simply commenting out
   // for (i = 0; i < BN; ++i) q[i] = SQRT(q[i]);
-  for (i = 0; i < BN; ++i) r += q[i];
+  // for (i = 0; i < BN; ++i) r += q[i];
   return r;
 }
 
