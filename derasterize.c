@@ -118,7 +118,9 @@ Copyright 2019 Csdvrx & Justine Alexandra Roberts Tunney\"");
 #if MODE == BEST
 #define MC 9u  /* log2(#) of color combos to consider */
 // FIXME: different GN for mode A, mode B, etc.
-#define GN 49u /* # of glyphs to consider */
+// FIXME: testing
+#define GN 29u /* # of glyphs to consider */
+//#define GN 49u /* # of glyphs to consider */
 #elif MODE == FAST
 #define MC 6u
 #define GN 35u
@@ -164,11 +166,66 @@ Copyright 2019 Csdvrx & Justine Alexandra Roberts Tunney\"");
 //  _,▁,▂,▃,▄,▅,▆,▇ :█:▉,▊,▋,▌,▍,▎,▏
 // Mode X use box drawing, mode X use diagonal blocks, mode X use braille etc
 
+// was W(B, S) B##U << S
+// tried W(B, S) B##ULL << S
 #define W(B, S) B##ULL << S
 #define CN 3u        /* # channels (rgb) */
 #define YS 16u        /* row stride -or- block height */
 #define XS 8u        /* column stride -or- block width */
 #define BN (YS * XS) /* # scalars in block/glyph plane */
+#define GT 49u       /* total glyphs */
+
+static const char16_t kRunes[GT] = {
+    u' ', /* 0020 empty block */
+    u'█', /* 2588 full block */
+    u'▄', /* 2584 lower half block */
+    u'▀', /* 2580 upper half block */
+    u'▐', /* 2590 right half block */
+    u'▌', /* 258C left half block */
+    u'▝', /* 259D quadrant upper right */
+    u'▙', /* 2599 quadrant upper left and lower left and lower right */
+    u'▗', /* 2597 quadrant lower right */
+    u'▛', /* 259B quadrant upper left and upper right and lower left */
+    u'▖', /* 2596 quadrant lower left */
+    u'▜', /* 259C quadrant upper left and upper right and lower right */
+    u'▘', /* 2598 quadrant upper left */
+    u'▟', /* 259F quadrant upper right and lower left and lower right */
+    u'▞', /* 259E quadrant upper right and lower left */
+    u'▚', /* 259A quadrant upper left and lower right */
+    u'▔', /* 2594 upper one eighth block */
+    u'▁', /* 2581 lower one eighth block */
+    u'▂', /* 2582 lower one quarter block */
+    u'▃', /* 2583 lower three eighths block */
+    u'▅', /* 2585 lower five eighths block */
+    u'▆', /* 2586 lower three quarters block */
+    u'▇', /* 2587 lower seven eighths block */
+    u'▕', /* 2595 right one eight block */
+    u'▏', /* 258F left one eight block */
+    u'▎', /* 258E left one quarter block */
+    u'▍', /* 258D left three eigths block */
+    u'▋', /* 258B left five eigths block */
+    u'▊', /* 258A left three quarters block */
+    u'━', /* 2501 box drawings heavy horizontal */
+    u'┉', /* 2509 box drawings heavy quadruple dash horizontal */
+    u'┃', /* 2503 box drawings heavy vertical */
+    u'╋', /* 254B box drawings heavy vertical & horiz. */
+    u'╹', /* 2579 box drawings heavy up */
+    u'╺', /* 257A box drawings heavy right */
+    u'╻', /* 257B box drawings heavy down */
+    u'╸', /* 2578 box drawings heavy left */
+    u'┏', /* 250F box drawings heavy down and right */
+    u'┛', /* 251B box drawings heavy up and left */
+    u'┓', /* 2513 box drawings heavy down and left */
+    u'┗', /* 2517 box drawings heavy up and right */
+    u'◢', /* 25E2 black lower right triangle */
+    u'◣', /* 25E3 black lower left triangle */
+    u'◥', /* 25E4 black upper right triangle */
+    u'◤', /* 25E5 black upper left triangle */
+    // FIXME: add diagonals lines ,‘` /\ and less angleed: ╱╲ cf /╱╲\
+    u'═', /* 2550 box drawings double horizontal */
+    u'⎻', /* 23BB horizontal scan line 3 */
+    u'⎼', /* 23BD horizontal scan line 9 */
+};
 
 // BN plane definition in octal to avoid mistakes, generate that with bash:
 // let o=0; for y in ` echo {A..P}` ; do for x in `echo {A..H}` ; do
@@ -249,9 +306,12 @@ Copyright 2019 Csdvrx & Justine Alexandra Roberts Tunney\"");
 // - we shouldn't use square glyphs, 8x16 seems to be the minimal size
 // - we should adapt the conversion to BMP to avoid accidental Y downsampling
 
-#define GT 49u       /* total glyphs */
+#ifndef __SIZEOF_INT128__
+typedef unsigned int __uint128 __attribute__ ((__mode__ (TI)));
+#endif
 
-static const uint32_t kGlyphs[GT] = /* clang-format off */ {
+// for a 4x8 canvas, was uint32_t => 4 times bigger now as 8x16
+static const __int128 kGlyphs128[GT] = /* clang-format off */ {
     /* U+0020 ' ' empty block [ascii:20,0,cp437:20] */
     G(0,0,0,0,0,0,0,0,
       0,0,0,0,0,0,0,0,
@@ -1128,56 +1188,6 @@ static const uint32_t kGlyphs[GT] = /* clang-format off */ {
       0,0,0,0,0,0,0,0),
 } /* clang-format on */;
 
-static const char16_t kRunes[GT] = {
-    u' ', /* 0020 empty block */
-    u'█', /* 2588 full block */
-    u'▄', /* 2584 lower half block */
-    u'▀', /* 2580 upper half block */
-    u'▐', /* 2590 right half block */
-    u'▌', /* 258C left half block */
-    u'▝', /* 259D quadrant upper right */
-    u'▙', /* 2599 quadrant upper left and lower left and lower right */
-    u'▗', /* 2597 quadrant lower right */
-    u'▛', /* 259B quadrant upper left and upper right and lower left */
-    u'▖', /* 2596 quadrant lower left */
-    u'▜', /* 259C quadrant upper left and upper right and lower right */
-    u'▘', /* 2598 quadrant upper left */
-    u'▟', /* 259F quadrant upper right and lower left and lower right */
-    u'▞', /* 259E quadrant upper right and lower left */
-    u'▚', /* 259A quadrant upper left and lower right */
-    u'▔', /* 2594 upper one eighth block */
-    u'▁', /* 2581 lower one eighth block */
-    u'▂', /* 2582 lower one quarter block */
-    u'▃', /* 2583 lower three eighths block */
-    u'▅', /* 2585 lower five eighths block */
-    u'▆', /* 2586 lower three quarters block */
-    u'▇', /* 2587 lower seven eighths block */
-    u'▕', /* 2595 right one eight block */
-    u'▏', /* 258F left one eight block */
-    u'▎', /* 258E left one quarter block */
-    u'▍', /* 258D left three eigths block */
-    u'▋', /* 258B left five eigths block */
-    u'▊', /* 258A left three quarters block */
-    u'━', /* 2501 box drawings heavy horizontal */
-    u'┉', /* 2509 box drawings heavy quadruple dash horizontal */
-    u'┃', /* 2503 box drawings heavy vertical */
-    u'╋', /* 254B box drawings heavy vertical & horiz. */
-    u'╹', /* 2579 box drawings heavy up */
-    u'╺', /* 257A box drawings heavy right */
-    u'╻', /* 257B box drawings heavy down */
-    u'╸', /* 2578 box drawings heavy left */
-    u'┏', /* 250F box drawings heavy down and right */
-    u'┛', /* 251B box drawings heavy up and left */
-    u'┓', /* 2513 box drawings heavy down and left */
-    u'┗', /* 2517 box drawings heavy up and right */
-    u'◢', /* 25E2 black lower right triangle */
-    u'◣', /* 25E3 black lower left triangle */
-    u'◥', /* 25E4 black upper right triangle */
-    u'◤', /* 25E5 black upper left triangle */
-    u'═', /* 2550 box drawings double horizontal */
-    u'⎻', /* 23BB horizontal scan line 3 */
-    u'⎼', /* 23BD horizontal scan line 9 */
-};
 
 /*───────────────────────────────────────────────────────────────────────────│─╗
 │ derasterize § encoding                                                   ─╬─│┼
@@ -1429,14 +1439,28 @@ static unsigned combinecolors(unsigned char bf[1u << MC][2],
  */
 static FLOAT adjudicate(unsigned b, unsigned f, unsigned g,
                         const FLOAT lb[CN * BN]) {
-  unsigned i, k, gu;
+  __int128 g128;
+  unsigned short gA, gB;
+  unsigned i, k, gA1, gA2, gB1, gB2;
   FLOAT p[BN], q[BN], fu, bu, r;
   memset(q, 0, sizeof(q));
   for (k = 0; k < CN; ++k) {
-    gu = kGlyphs[g];
     bu = lb[k * BN + b];
     fu = lb[k * BN + f];
-    for (i = 0; i < BN; ++i) p[i] = (gu & (1u << i)) ? fu : bu;
+    // Chunk that 128 glyph into 4 parts of 32
+    // FIXME: also chunk combinecolor
+    g128 = kGlyphs128[g];
+    gA = g128 & 0xFFFF;
+    gA1 = gA & 0xFF;
+    gA2 = gA >>8;
+    gB = g128 >> 0xF;
+    gB1 = gB & 0xFF;
+    gB2 = gB >>8;
+    // then iterate
+    for (i = 0;      i < BN/4;   ++i) p[i] = (gA1 & (1u << i)) ? fu : bu;
+    for (i = BN/4;   i < BN/2;   ++i) p[i] = (gA2 & (1u << i)) ? fu : bu;
+    for (i = BN/2;   i < BN*3/4; ++i) p[i] = (gB1 & (1u << i)) ? fu : bu;
+    for (i = BN*3/4; i < BN;     ++i) p[i] = (gB2 & (1u << i)) ? fu : bu;
     for (i = 0; i < BN; ++i) p[i] -= lb[k * BN + i];
     for (i = 0; i < BN; ++i) p[i] *= p[i];
     for (i = 0; i < BN; ++i) q[i] += p[i];
@@ -1446,9 +1470,11 @@ static FLOAT adjudicate(unsigned b, unsigned f, unsigned g,
   for (i = 0; i < BN; ++i) r += q[i];
   return r;
 }
+// CN color channels, GN characters, BN canvas size
 
 /**
- * Converts tiny bitmap graphic into unicode glyph.
+ * Converts tiny bitmap graphic into unicode glyph: iterate on the GN glyphs
+ * and select the best as the one with the lowest differences
  */
 static struct Cell derasterize(unsigned char block[CN * BN]) {
   struct Cell cell;
