@@ -306,12 +306,26 @@ static const char16_t kRunes[GT] = {
 // - we shouldn't use square glyphs, 8x16 seems to be the minimal size
 // - we should adapt the conversion to BMP to avoid accidental Y downsampling
 
-#ifndef __SIZEOF_INT128__
-typedef unsigned int __uint128 __attribute__ ((__mode__ (TI)));
+#undef int128_t
+#define int128_t our_int128_t
+#undef uint128_t
+#define uint128_t our_uint128_t
+
+#if HAVE___INT128
+typedef __int128                int128_t;
+typedef unsigned __int128       uint128_t;
+#elif HAVE_INT128
+typedef int128                  int128_t;
+typedef unsigned int128         uint128_t;
+#else /* HAVE__INT128_T */
+typedef __int128_t              int128_t;
+typedef __uint128_t             uint128_t;
 #endif
 
+#define UINT128_MAX             ((uint128_t)-1)
+
 // for a 4x8 canvas, was uint32_t => 4 times bigger now as 8x16
-static const __int128 kGlyphs128[GT] = /* clang-format off */ {
+static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
     /* U+0020 ' ' empty block [ascii:20,0,cp437:20] */
     G(0,0,0,0,0,0,0,0,
       0,0,0,0,0,0,0,0,
@@ -1439,7 +1453,7 @@ static unsigned combinecolors(unsigned char bf[1u << MC][2],
  */
 static FLOAT adjudicate(unsigned b, unsigned f, unsigned g,
                         const FLOAT lb[CN * BN]) {
-  __int128 g128;
+  uint128_t g128;
   unsigned short gA, gB;
   unsigned i, k, gA1, gA2, gB1, gB2;
   FLOAT p[BN], q[BN], fu, bu, r;
