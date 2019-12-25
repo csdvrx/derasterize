@@ -254,38 +254,46 @@ typedef __uint128_t             uint128_t;
 #define UINT128_MAX             ((uint128_t)-1)
 
 // For assembling the fonts, MSB first, LSB last
+// for i in `seq 0 255` ; do echo \#define BB$(echo "obase=2; ibase=10; $i; obase=16; $i" | bc ) ; done
 
 #include "binary.h"
 
+// FIXME: something is wrong with both B32 and BB128 byte ordering
+#define R2(B) ((B & 0xcc) >> 2) | ((B & 0x33) << 2)
+
 // For 4x8=32 with B
 #define B32(A,B,C,D,E,F,G,H) ( \
-  ((uint32_t)A<<28) \
-+ ((uint32_t)B<<24) \
-+ ((uint32_t)C<<20) \
-+ ((uint32_t)D<<16) \
-+ ((uint32_t)E<<12) \
-+ ((uint32_t)F<<8) \
-+ ((uint32_t)G<<4) \
-+            H)
+  R2((uint32_t)(E)<<28) \
++ R2((uint32_t)(F)<<24) \
++ R2((uint32_t)(G)<<20) \
++ R2((uint32_t)(H)<<16) \
++ R2((uint32_t)(A)<<12) \
++ R2((uint32_t)(B)<<8) \
++ R2((uint32_t)(C)<<4) \
++            R2(D))
 
 // For 8x16=128 with BB
-#define B128(A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P) ( \
-  ((uint128_t)A<<120) \
-+ ((uint128_t)B<<112) \
-+ ((uint128_t)C<<104) \
-+ ((uint128_t)D<<96) \
-+ ((uint128_t)E<<88) \
-+ ((uint128_t)F<<80) \
-+ ((uint128_t)G<<72) \
-+ ((uint128_t)H<<64) \
-+ (( uint64_t)I<<56) \
-+ (( uint64_t)J<<48) \
-+ (( uint64_t)J<<40) \
-+ (( uint64_t)L<<32) \
-+ (( uint64_t)M<<24) \
-+ (( uint64_t)N<<16) \
-+ (( uint64_t)O<<8) \
-+  ( uint64_t)P)
+#define BB128( \
+                A,B,C,D,E,F,G,H \
+                , \
+                I,J,K,L,M,N,O,P \
+                ) ( \
+  ((uint128_t)(E)<<120) \
++ ((uint128_t)(F)<<112) \
++ ((uint128_t)(G)<<104) \
++ ((uint128_t)(H)<<96) \
++ ((uint128_t)(A)<<88) \
++ ((uint128_t)(B)<<80) \
++ ((uint128_t)(C)<<72) \
++ ((uint128_t)(D)<<64) \
++ (( uint64_t)(M)<<56) \
++ (( uint64_t)(N)<<48) \
++ (( uint64_t)(O)<<40) \
++ (( uint64_t)(P)<<32) \
++ (( uint64_t)(I)<<24) \
++ (( uint64_t)(J)<<16) \
++ (( uint64_t)(K)<<8) \
++ (  uint64_t)(L))
 
 // TODO: ideally seed kGlyph32 from kGlyph128 with a macro
 // to only have to redefine the few chars that don't look look in 4x8
@@ -294,7 +302,7 @@ typedef __uint128_t             uint128_t;
 // for a 4x8 canvas, was uint32_t => 4 times bigger now as 8x16
 static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
     /* U+0020 ' ' empty block [ascii;200cp437;20] */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -311,7 +319,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB00000000,
       BB00000000),
     /* U+2588 '█' full block [cp437] */
- B128(BB11111111,
+BB128(BB11111111,
       BB11111111,
       BB11111111,
       BB11111111,
@@ -328,7 +336,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11111111,
       BB11111111),
     /* U+2584 '▄' lower half block [cp437,dc] */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -345,7 +353,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11111111,
       BB11111111),
     /* U+2580 '▀' upper half block [cp437] */
- B128(BB11111111,
+BB128(BB11111111,
       BB11111111,
       BB11111111,
       BB11111111,
@@ -363,7 +371,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB00000000),
     // Mode B
     /* U+2590 '▐' right half block [cp437,de] */
- B128(BB00001111,
+BB128(BB00001111,
       BB00001111,
       BB00001111,
       BB00001111,
@@ -380,7 +388,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB00001111,
       BB00001111),
     /* U+258C '▌' left half block [cp437] */
- B128(BB11110000,
+BB128(BB11110000,
       BB11110000,
       BB11110000,
       BB11110000,
@@ -397,7 +405,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11110000,
       BB11110000),
     /* U+259D '▝' quadrant upper right */
- B128(BB00001111,
+BB128(BB00001111,
       BB00001111,
       BB00001111,
       BB00001111,
@@ -414,7 +422,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB00000000,
       BB00000000),
     /* U+2599 '▙' quadrant upper left and lower left and lower right */
- B128(BB11110000,
+BB128(BB11110000,
       BB11110000,
       BB11110000,
       BB11110000,
@@ -431,7 +439,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11111111,
       BB11111111),
     /* U+2597 '▗' quadrant lower right */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -448,7 +456,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB00001111,
       BB00001111),
     /* U+259B '▛' quadrant upper left and upper right and lower left */
- B128(BB11111111,
+BB128(BB11111111,
       BB11111111,
       BB11111111,
       BB11111111,
@@ -465,7 +473,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11110000,
       BB11110000),
     /* U+2596 '▖' quadrant lower left */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -482,7 +490,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11110000,
       BB11110000),
     /* U+259C '▜' quadrant upper left and upper right and lower right */
- B128(BB11111111,
+BB128(BB11111111,
       BB11111111,
       BB11111111,
       BB11111111,
@@ -499,7 +507,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB00001111,
       BB00001111),
     /* U+2598 '▘' quadrant upper left */
- B128(BB11110000,
+BB128(BB11110000,
       BB11110000,
       BB11110000,
       BB11110000,
@@ -516,7 +524,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB00000000,
       BB00000000),
     /* U+259F '▟' quadrant upper right and lower left and lower right */
- B128(BB00001111,
+BB128(BB00001111,
       BB00001111,
       BB00001111,
       BB00001111,
@@ -533,7 +541,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11111111,
       BB11111111),
     /* U+259E '▞' quadrant upper right and lower left */
- B128(BB00001111,
+BB128(BB00001111,
       BB00001111,
       BB00001111,
       BB00001111,
@@ -550,7 +558,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11110000,
       BB11110000),
     /* U+259A '▚' quadrant upper left and lower right */
- B128(BB11110000,
+BB128(BB11110000,
       BB11110000,
       BB11110000,
       BB11110000,
@@ -568,7 +576,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB00001100),
     // Mode C
     /* U+2594 '▔' upper one eighth block */
- B128(BB11111111,
+BB128(BB11111111,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -585,7 +593,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB00000000,
       BB00000000),
     /* U+2581 '▁' lower one eighth block */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -602,7 +610,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB00000000,
       BB11111111),
     /* U+2582 '▂' lower one quarter block */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -619,7 +627,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11111111,
       BB11111111),
     /* U+2583 '▃' lower three eighths block */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -636,7 +644,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11111111,
       BB11111111),
     /* U+2585 '▃' lower five eighths block */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -653,7 +661,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11111111,
       BB11111111),
     /* U+2586 '▆' lower three quarters block */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -670,7 +678,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11111111,
       BB11111111),
     /* U+2587 '▇' lower seven eighths block */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB11111111,
       BB11111111,
@@ -687,7 +695,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11111111,
       BB11111111),
     /* U+2595 '▕' right one eight block */
- B128(BB00000001,
+BB128(BB00000001,
       BB00000001,
       BB00000001,
       BB00000001,
@@ -704,7 +712,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB00000001,
       BB00000001),
     /* U+258F '▏' left one eight block */
- B128(BB10000000,
+BB128(BB10000000,
       BB10000000,
       BB10000000,
       BB10000000,
@@ -721,7 +729,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB10000000,
       BB10000000),
     /* U+258E '▎' left one quarter block */
- B128(BB11000000,
+BB128(BB11000000,
       BB11000000,
       BB11000000,
       BB11000000,
@@ -738,7 +746,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11000000,
       BB11000000),
     /* U+258D '▍' left three eigths block */
- B128(BB11100000,
+BB128(BB11100000,
       BB11100000,
       BB11100000,
       BB11100000,
@@ -755,7 +763,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11100000,
       BB11100000),
     /* U+258B '▋' left five eigths block */
- B128(BB11111000,
+BB128(BB11111000,
       BB11111000,
       BB11111000,
       BB11111000,
@@ -772,7 +780,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11111000,
       BB11111000),
     /* U+258A '▊' left three quarter block */
- B128(BB11111100,
+BB128(BB11111100,
       BB11111100,
       BB11111100,
       BB11111100,
@@ -789,7 +797,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       BB11111100,
       BB11111100),
     /* U+2589 '▉' left seven eights block */
- B128(BB11111110,
+BB128(BB11111110,
       BB11111110,
       BB11111110,
       BB11111110,
@@ -808,7 +816,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     2501▕━▎box drawings heavy horizontal
       \* ▔ */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -827,7 +835,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
    25019▕┉▎box drawings heavy quadruple dash horizontal
       \* ▔ */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -847,7 +855,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
     2503▕┃▎box drawings heavy vertical
       \* ▔ */
       // FIXME, X=9 would work better for that
- B128(BB00011100,
+BB128(BB00011100,
       BB00111000,
       BB00011100,
       BB00111000,
@@ -866,7 +874,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     254b▕╋▎box drawings heavy vertical and horizontal
       \* ▔ */
- B128(BB00011100,
+BB128(BB00011100,
       BB00111000,
       BB00011100,
       BB00111000,
@@ -885,7 +893,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     2579▕╹▎box drawings heavy up
       \* ▔ */
- B128(BB00011100,
+BB128(BB00011100,
       BB00111000,
       BB00011100,
       BB00111000,
@@ -904,7 +912,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     257a▕╺▎box drawings heavy right
       \* ▔ */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -923,7 +931,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     257b▕╻▎box drawings heavy down
       \* ▔ */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -942,7 +950,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     2578▕╸▎box drawings heavy left
       \* ▔ */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -961,7 +969,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     250f▕┏▎box drawings heavy down and right
       \* ▔ */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -980,7 +988,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     251b▕┛▎box drawings heavy up and left
       \* ▔ */
- B128(BB00011100,
+BB128(BB00011100,
       BB00111000,
       BB00011100,
       BB00111000,
@@ -999,7 +1007,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     2513▕┓▎box drawings heavy down and left
       \* ▔ */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -1018,7 +1026,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     2517▕┗▎box drawings heavy up and right
       \* ▔ */
- B128(BB00011100,
+BB128(BB00011100,
       BB00111000,
       BB00011100,
       BB00111000,
@@ -1037,7 +1045,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     25E2▕◢▎black lower right triangle
       \* ▔ */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -1056,7 +1064,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     25E3▕◣▎black lower left triangle
       \* ▔ */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -1075,7 +1083,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     25E4▕◥▎black upper right triangle
       \* ▔ */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -1094,7 +1102,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     25E5▕◤▎black upper left triangle
       \* ▔ */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -1113,7 +1121,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     2500▕═▎box drawings double horizontal
       \* ▔ */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -1132,7 +1140,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     TODO▕⎻▎horizontal scan line 3
       \* ▔ */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -1151,7 +1159,7 @@ static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
       /* ▁ *\
     TODO▕⎼▎horizontal scan line 9
       \* ▔ */
- B128(BB00000000,
+BB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
