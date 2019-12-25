@@ -257,16 +257,18 @@ typedef __uint128_t             uint128_t;
 
 #include "binary.h"
 
-#define B64(A,B,C,D,E,F,G,H) ( \
-  ((unsigned long)A<<56) \
-+ ((unsigned long)B<<48) \
-+ ((unsigned long)C<<40) \
-+ ((unsigned long)D<<32) \
-+ ((unsigned long)E<<24) \
-+ ((unsigned long)F<<16) \
-+ ((unsigned long)G<<8) \
+// For 4x8=32 with B
+#define B32(A,B,C,D,E,F,G,H) ( \
+  ((unsigned long)A<<28) \
++ ((unsigned long)B<<24) \
++ ((unsigned long)C<<20) \
++ ((unsigned long)D<<16) \
++ ((unsigned long)E<<12) \
++ ((unsigned long)F<<8) \
++ ((unsigned long)G<<4) \
 +                 H)
 
+// For 8x16=128 with BB
 #define B128(A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P) ( \
   ((unsigned long)A<<120) \
   ((unsigned long)B<<112 \
@@ -284,6 +286,10 @@ typedef __uint128_t             uint128_t;
 + ((unsigned long)N<<16) \
 + ((unsigned long)O<<8) \
 +                 P)
+
+// TODO: ideally seed kGlyph32 from kGlyph128 with a macro
+// to only have to redefine the few chars that don't look look in 4x8
+// or that can't be applied (ex: 1/8th width horizontal bar, 3/8th w.h.b, etc.
 
 // for a 4x8 canvas, was uint32_t => 4 times bigger now as 8x16
 static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
