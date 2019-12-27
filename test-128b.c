@@ -62,7 +62,7 @@ typedef __uint128_t             uint128_t;
 #define R32(B) ((((B) & 0xffffffff00000000) >> 32) | (((B) & 0x00000000ffffffff) << 32))
 
 // To reverse all the bits in 128 bits to be compatible with Justine
-#define RR(B128) R1(R2(R4(R8(R16(B32(B64(B128)))))))
+#define RR(B128) R1(R2(R4(R8(R16(R32(R64(B128)))))))
 
 // For 4x8=32 with B
 #define B32(A,B,C,D,E,F,G,H) ( \
