@@ -1,19 +1,7 @@
 /*bin/echo  ' -*- mode:c;indent-tabs-mode:nil;c-basic-offset:2;coding:utf-8 -*-│
 │vi: set net ft=c ts=2 sts=2 sw=2 fenc=utf-8                                :vi│
 ╞══════════════════════════════════════════════════════════════════════════════╡
-│ Copyright 2019 Justine Alexandra Roberts Tunney                     │
-│                                                                              │
-│ Permission to use, copy, modify, and/or distribute this software for any     │
-│ purpose with or without fee is hereby granted, provided that the above       │
-│ copyright notice and this permission notice appear in all copies.            │
-│                                                                              │
-│ THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES     │
-│ WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF             │
-│ MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR      │
-│ ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES       │
-│ WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN        │
-│ ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF      │
-│ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.               │
+│ This is really REALLY free software, BSD style ISC license: read LICENSE.txt |
 ╞══════════════════════════════════════════════════════════════════════════════╡
 │ To use this, install a compiler and (for now) imagemagick:                   │
 │  apt install build-essential imagemagick                                     │
@@ -258,42 +246,107 @@ typedef __uint128_t             uint128_t;
 
 #include "binary.h"
 
-// FIXME: something is wrong with both B32 and BB128 byte ordering
-#define R2(B) ((B & 0xcc) >> 2) | ((B & 0x33) << 2)
+// on 32 bit, swap 16 bits : ABCD EFGH -> EFGH ABCD
+#define R16(B) ((((B) & 0xffff0000) >> 16) | (((B) & 0x0000ffff) << 16))
+// AB00EF00 -> 00AB00EF |  00CD00GH -> CD00GH00
+// So EFGH ABCD -> GHEF CDAB
+#define R8(B) ((((B) & 0xff00ff00) >> 8 ) | (((B) & 0x00ff00ff) << 8))
+// A0C0E0G0 -> 0A0C0E0G | 0B0D0F0H -> B0D0F0H
+// So GHEF CDAB -> HGFE DCBA
+#define R4(B) ((((B) & 0xf0f0f0f0) >> 4 ) | ((B & 0x0f0f0f0f) << 4))
+// Then at byte level, switch pack of 2
+#define R2(B) ((((B) & 0xcccccccc) >> 2 ) | ((B & 0x33333333) << 2))
+// Then at the bit level, switch invididual bits
+#define R1(B) ((((B) & 0xaaaaaaaa) >> 1 ) | ((B & 0x55555555) << 1))
+
+// on 128 bit, swap 64 bits : ABCD EFGH -> EFGH ABCD
+#define R64(B) ((((B) & 0xffffffffffffffff0000000000000000) >> 64) | (((B) & 0x0000000000000000ffffffffffffffff) << 64))
+// on 128 bit, swap 32 bits : ABCD EFGH -> EFGH ABCD
+#define R32(B) ((((B) & 0xffffffff00000000ffffffff00000000) >> 32) | (((B) & 0x00000000ffffffff00000000ffffffff) << 32))
 
 // For 4x8=32 with B
 #define B32(A,B,C,D,E,F,G,H) ( \
-  R2((uint32_t)(E)<<28) \
-+ R2((uint32_t)(F)<<24) \
-+ R2((uint32_t)(G)<<20) \
-+ R2((uint32_t)(H)<<16) \
-+ R2((uint32_t)(A)<<12) \
-+ R2((uint32_t)(B)<<8) \
-+ R2((uint32_t)(C)<<4) \
-+            R2(D))
+  ((uint32_t)(A)<<28) \
++ ((uint32_t)(B)<<24) \
++ ((uint32_t)(C)<<20) \
++ ((uint32_t)(D)<<16) \
++ ((uint32_t)(E)<<12) \
++ ((uint32_t)(F)<<8) \
++ ((uint32_t)(G)<<4) \
++            (H))
 
 // For 8x16=128 with BB
-#define BB128( \
+#define ABB128( \
                 A,B,C,D,E,F,G,H \
                 , \
                 I,J,K,L,M,N,O,P \
                 ) ( \
-  ((uint128_t)(E)<<120) \
-+ ((uint128_t)(F)<<112) \
-+ ((uint128_t)(G)<<104) \
-+ ((uint128_t)(H)<<96) \
-+ ((uint128_t)(A)<<88) \
-+ ((uint128_t)(B)<<80) \
-+ ((uint128_t)(C)<<72) \
-+ ((uint128_t)(D)<<64) \
-+ (( uint64_t)(M)<<56) \
-+ (( uint64_t)(N)<<48) \
-+ (( uint64_t)(O)<<40) \
-+ (( uint64_t)(P)<<32) \
-+ (( uint64_t)(I)<<24) \
-+ (( uint64_t)(J)<<16) \
-+ (( uint64_t)(K)<<8) \
-+ (  uint64_t)(L))
+  ((uint128_t)(A)<<120) \
++ ((uint128_t)(B)<<112) \
++ ((uint128_t)(C)<<104) \
++ ((uint128_t)(D)<<96) \
++ ((uint128_t)(E)<<88) \
++ ((uint128_t)(F)<<80) \
++ ((uint128_t)(G)<<72) \
++ ((uint128_t)(H)<<64) \
++ (( uint64_t)(I)<<56) \
++ (( uint64_t)(J)<<48) \
++ (( uint64_t)(K)<<40) \
++ (( uint64_t)(L)<<32) \
++ (( uint64_t)(M)<<24) \
++ (( uint64_t)(N)<<16) \
++ (( uint64_t)(O)<<8) \
++ (  uint64_t)(P))
+
+#define RRBB128( \
+                I,J,K,L,M,N,O,P \
+                , \
+                A,B,C,D,E,F,G,H \
+                ) ( \
+  ((uint128_t)R(E)<<120) \
++ ((uint128_t)R(F)<<112) \
++ ((uint128_t)R(G)<<104) \
++ ((uint128_t)R(H)<<96) \
++ ((uint128_t)R(A)<<88) \
++ ((uint128_t)R(B)<<80) \
++ ((uint128_t)R(C)<<72) \
++ ((uint128_t)R(D)<<64) \
++ (( uint64_t)R(M)<<56) \
++ (( uint64_t)R(N)<<48) \
++ (( uint64_t)R(O)<<40) \
++ (( uint64_t)R(P)<<32) \
++ (( uint64_t)R(I)<<24) \
++ (( uint64_t)R(J)<<16) \
++ (( uint64_t)R(K)<<8) \
++ (  uint64_t)R(L))
+
+
+// To reverse all the bits in 32 bits
+#define R(B) R1(R2(R4(R8(R16(B)))))
+// To reverse all the bits in 128 bit
+#define RA(BB) R1(R2(R4(R8(R16(R32(R64(BB)))))))
+// To partially reverse bits in 128 bit
+#define RR(BB) R32(R64(BB))
+
+// To read fonts like Justine
+#define RB32(A,B,C,D,E,F,G,H) R(B32((A),(B),(C),(D),(E),(F),(G),(H)))
+#define ARRBB128(A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P) RR(BB128(R((A)),R((B)),R((C)),R((D)),R((E)),R((F)),R((G)),R((H)),R((I)),R((J)),R((K)),R((L)),R((M)),R((N)),R((O)),R((P))))
+
+// For debugging with a byte
+#define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
+#define BYTE_TO_BINARY(byte)  \
+  (byte & 0x80 ? '1' : '0'), \
+  (byte & 0x40 ? '1' : '0'), \
+  (byte & 0x20 ? '1' : '0'), \
+  (byte & 0x10 ? '1' : '0'), \
+  (byte & 0x08 ? '1' : '0'), \
+  (byte & 0x04 ? '1' : '0'), \
+  (byte & 0x02 ? '1' : '0'), \
+  (byte & 0x01 ? '1' : '0')
+// For 32bits, use masks
+// m=32bitnumber;
+// printf("R1(R2(R4(R8(R16("BYTE_TO_BINARY_PATTERN" "BYTE_TO_BINARY_PATTERN" "BYTE_TO_BINARY_PATTERN" "BYTE_TO_BINARY_PATTERN"\n", BYTE_TO_BINARY(m>>24), BYTE_TO_BINARY(m>>16), BYTE_TO_BINARY(m>>8), BYTE_TO_BINARY(m));
+
 
 // TODO: ideally seed kGlyph32 from kGlyph128 with a macro
 // to only have to redefine the few chars that don't look look in 4x8
@@ -302,7 +355,7 @@ typedef __uint128_t             uint128_t;
 // for a 4x8 canvas, was uint32_t => 4 times bigger now as 8x16
 static const uint128_t kGlyphs128[GT] = /* clang-format off */ {
     /* U+0020 ' ' empty block [ascii;200cp437;20] */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -319,7 +372,7 @@ BB128(BB00000000,
       BB00000000,
       BB00000000),
     /* U+2588 '█' full block [cp437] */
-BB128(BB11111111,
+RRBB128(BB11111111,
       BB11111111,
       BB11111111,
       BB11111111,
@@ -336,7 +389,7 @@ BB128(BB11111111,
       BB11111111,
       BB11111111),
     /* U+2584 '▄' lower half block [cp437,dc] */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -353,7 +406,7 @@ BB128(BB00000000,
       BB11111111,
       BB11111111),
     /* U+2580 '▀' upper half block [cp437] */
-BB128(BB11111111,
+RRBB128(BB11111111,
       BB11111111,
       BB11111111,
       BB11111111,
@@ -371,7 +424,7 @@ BB128(BB11111111,
       BB00000000),
     // Mode B
     /* U+2590 '▐' right half block [cp437,de] */
-BB128(BB00001111,
+RRBB128(BB00001111,
       BB00001111,
       BB00001111,
       BB00001111,
@@ -388,7 +441,7 @@ BB128(BB00001111,
       BB00001111,
       BB00001111),
     /* U+258C '▌' left half block [cp437] */
-BB128(BB11110000,
+RRBB128(BB11110000,
       BB11110000,
       BB11110000,
       BB11110000,
@@ -405,7 +458,7 @@ BB128(BB11110000,
       BB11110000,
       BB11110000),
     /* U+259D '▝' quadrant upper right */
-BB128(BB00001111,
+RRBB128(BB00001111,
       BB00001111,
       BB00001111,
       BB00001111,
@@ -422,7 +475,7 @@ BB128(BB00001111,
       BB00000000,
       BB00000000),
     /* U+2599 '▙' quadrant upper left and lower left and lower right */
-BB128(BB11110000,
+RRBB128(BB11110000,
       BB11110000,
       BB11110000,
       BB11110000,
@@ -439,7 +492,7 @@ BB128(BB11110000,
       BB11111111,
       BB11111111),
     /* U+2597 '▗' quadrant lower right */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -456,7 +509,7 @@ BB128(BB00000000,
       BB00001111,
       BB00001111),
     /* U+259B '▛' quadrant upper left and upper right and lower left */
-BB128(BB11111111,
+RRBB128(BB11111111,
       BB11111111,
       BB11111111,
       BB11111111,
@@ -473,7 +526,7 @@ BB128(BB11111111,
       BB11110000,
       BB11110000),
     /* U+2596 '▖' quadrant lower left */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -490,7 +543,7 @@ BB128(BB00000000,
       BB11110000,
       BB11110000),
     /* U+259C '▜' quadrant upper left and upper right and lower right */
-BB128(BB11111111,
+RRBB128(BB11111111,
       BB11111111,
       BB11111111,
       BB11111111,
@@ -507,7 +560,7 @@ BB128(BB11111111,
       BB00001111,
       BB00001111),
     /* U+2598 '▘' quadrant upper left */
-BB128(BB11110000,
+RRBB128(BB11110000,
       BB11110000,
       BB11110000,
       BB11110000,
@@ -524,7 +577,7 @@ BB128(BB11110000,
       BB00000000,
       BB00000000),
     /* U+259F '▟' quadrant upper right and lower left and lower right */
-BB128(BB00001111,
+RRBB128(BB00001111,
       BB00001111,
       BB00001111,
       BB00001111,
@@ -541,7 +594,7 @@ BB128(BB00001111,
       BB11111111,
       BB11111111),
     /* U+259E '▞' quadrant upper right and lower left */
-BB128(BB00001111,
+RRBB128(BB00001111,
       BB00001111,
       BB00001111,
       BB00001111,
@@ -558,7 +611,7 @@ BB128(BB00001111,
       BB11110000,
       BB11110000),
     /* U+259A '▚' quadrant upper left and lower right */
-BB128(BB11110000,
+RRBB128(BB11110000,
       BB11110000,
       BB11110000,
       BB11110000,
@@ -576,7 +629,7 @@ BB128(BB11110000,
       BB00001100),
     // Mode C
     /* U+2594 '▔' upper one eighth block */
-BB128(BB11111111,
+RRBB128(BB11111111,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -593,7 +646,7 @@ BB128(BB11111111,
       BB00000000,
       BB00000000),
     /* U+2581 '▁' lower one eighth block */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -610,7 +663,7 @@ BB128(BB00000000,
       BB00000000,
       BB11111111),
     /* U+2582 '▂' lower one quarter block */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -627,7 +680,7 @@ BB128(BB00000000,
       BB11111111,
       BB11111111),
     /* U+2583 '▃' lower three eighths block */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -644,7 +697,7 @@ BB128(BB00000000,
       BB11111111,
       BB11111111),
     /* U+2585 '▃' lower five eighths block */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -661,7 +714,7 @@ BB128(BB00000000,
       BB11111111,
       BB11111111),
     /* U+2586 '▆' lower three quarters block */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -678,7 +731,7 @@ BB128(BB00000000,
       BB11111111,
       BB11111111),
     /* U+2587 '▇' lower seven eighths block */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB11111111,
       BB11111111,
@@ -695,7 +748,7 @@ BB128(BB00000000,
       BB11111111,
       BB11111111),
     /* U+2595 '▕' right one eight block */
-BB128(BB00000001,
+RRBB128(BB00000001,
       BB00000001,
       BB00000001,
       BB00000001,
@@ -712,7 +765,7 @@ BB128(BB00000001,
       BB00000001,
       BB00000001),
     /* U+258F '▏' left one eight block */
-BB128(BB10000000,
+RRBB128(BB10000000,
       BB10000000,
       BB10000000,
       BB10000000,
@@ -729,7 +782,7 @@ BB128(BB10000000,
       BB10000000,
       BB10000000),
     /* U+258E '▎' left one quarter block */
-BB128(BB11000000,
+RRBB128(BB11000000,
       BB11000000,
       BB11000000,
       BB11000000,
@@ -746,7 +799,7 @@ BB128(BB11000000,
       BB11000000,
       BB11000000),
     /* U+258D '▍' left three eigths block */
-BB128(BB11100000,
+RRBB128(BB11100000,
       BB11100000,
       BB11100000,
       BB11100000,
@@ -763,7 +816,7 @@ BB128(BB11100000,
       BB11100000,
       BB11100000),
     /* U+258B '▋' left five eigths block */
-BB128(BB11111000,
+RRBB128(BB11111000,
       BB11111000,
       BB11111000,
       BB11111000,
@@ -780,7 +833,7 @@ BB128(BB11111000,
       BB11111000,
       BB11111000),
     /* U+258A '▊' left three quarter block */
-BB128(BB11111100,
+RRBB128(BB11111100,
       BB11111100,
       BB11111100,
       BB11111100,
@@ -797,7 +850,7 @@ BB128(BB11111100,
       BB11111100,
       BB11111100),
     /* U+2589 '▉' left seven eights block */
-BB128(BB11111110,
+RRBB128(BB11111110,
       BB11111110,
       BB11111110,
       BB11111110,
@@ -816,7 +869,7 @@ BB128(BB11111110,
       /* ▁ *\
     2501▕━▎box drawings heavy horizontal
       \* ▔ */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -835,7 +888,7 @@ BB128(BB00000000,
       /* ▁ *\
    25019▕┉▎box drawings heavy quadruple dash horizontal
       \* ▔ */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -855,7 +908,7 @@ BB128(BB00000000,
     2503▕┃▎box drawings heavy vertical
       \* ▔ */
       // FIXME, X=9 would work better for that
-BB128(BB00011100,
+RRBB128(BB00011100,
       BB00111000,
       BB00011100,
       BB00111000,
@@ -874,7 +927,7 @@ BB128(BB00011100,
       /* ▁ *\
     254b▕╋▎box drawings heavy vertical and horizontal
       \* ▔ */
-BB128(BB00011100,
+RRBB128(BB00011100,
       BB00111000,
       BB00011100,
       BB00111000,
@@ -893,7 +946,7 @@ BB128(BB00011100,
       /* ▁ *\
     2579▕╹▎box drawings heavy up
       \* ▔ */
-BB128(BB00011100,
+RRBB128(BB00011100,
       BB00111000,
       BB00011100,
       BB00111000,
@@ -912,7 +965,7 @@ BB128(BB00011100,
       /* ▁ *\
     257a▕╺▎box drawings heavy right
       \* ▔ */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -931,7 +984,7 @@ BB128(BB00000000,
       /* ▁ *\
     257b▕╻▎box drawings heavy down
       \* ▔ */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -950,7 +1003,7 @@ BB128(BB00000000,
       /* ▁ *\
     2578▕╸▎box drawings heavy left
       \* ▔ */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -969,7 +1022,7 @@ BB128(BB00000000,
       /* ▁ *\
     250f▕┏▎box drawings heavy down and right
       \* ▔ */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -988,7 +1041,7 @@ BB128(BB00000000,
       /* ▁ *\
     251b▕┛▎box drawings heavy up and left
       \* ▔ */
-BB128(BB00011100,
+RRBB128(BB00011100,
       BB00111000,
       BB00011100,
       BB00111000,
@@ -1007,7 +1060,7 @@ BB128(BB00011100,
       /* ▁ *\
     2513▕┓▎box drawings heavy down and left
       \* ▔ */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -1026,7 +1079,7 @@ BB128(BB00000000,
       /* ▁ *\
     2517▕┗▎box drawings heavy up and right
       \* ▔ */
-BB128(BB00011100,
+RRBB128(BB00011100,
       BB00111000,
       BB00011100,
       BB00111000,
@@ -1045,7 +1098,7 @@ BB128(BB00011100,
       /* ▁ *\
     25E2▕◢▎black lower right triangle
       \* ▔ */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -1064,7 +1117,7 @@ BB128(BB00000000,
       /* ▁ *\
     25E3▕◣▎black lower left triangle
       \* ▔ */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -1083,7 +1136,7 @@ BB128(BB00000000,
       /* ▁ *\
     25E4▕◥▎black upper right triangle
       \* ▔ */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -1102,7 +1155,7 @@ BB128(BB00000000,
       /* ▁ *\
     25E5▕◤▎black upper left triangle
       \* ▔ */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -1121,7 +1174,7 @@ BB128(BB00000000,
       /* ▁ *\
     2500▕═▎box drawings double horizontal
       \* ▔ */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -1140,7 +1193,7 @@ BB128(BB00000000,
       /* ▁ *\
     TODO▕⎻▎horizontal scan line 3
       \* ▔ */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,
@@ -1159,7 +1212,7 @@ BB128(BB00000000,
       /* ▁ *\
     TODO▕⎼▎horizontal scan line 9
       \* ▔ */
-BB128(BB00000000,
+RRBB128(BB00000000,
       BB00000000,
       BB00000000,
       BB00000000,

@@ -53,16 +53,10 @@ typedef __uint128_t             uint128_t;
 // Then at the bit level, switch invididual bits
 #define R1(B) ((((B) & 0xaaaaaaaa) >> 1 ) | ((B & 0x55555555) << 1))
 
-// To reverse all the bits in 32 bits
-#define RB(B32) R1(R2(R4(R8(R16(B32)))))
-
 // on 128 bit, swap 64 bits : ABCD EFGH -> EFGH ABCD
 #define R64(B) ((((B) & 0xffffffffffffffff0000000000000000) >> 64) | (((B) & 0x0000000000000000ffffffffffffffff) << 64))
 // on 128 bit, swap 32 bits : ABCD EFGH -> EFGH ABCD
 #define R32(B) ((((B) & 0xffffffff00000000) >> 32) | (((B) & 0x00000000ffffffff) << 32))
-
-// To reverse all the bits in 128 bits to be compatible with Justine
-#define RR(B128) R1(R2(R4(R8(R16(R32(R64(B128)))))))
 
 // For 4x8=32 with B
 #define B32(A,B,C,D,E,F,G,H) ( \
@@ -98,9 +92,16 @@ typedef __uint128_t             uint128_t;
 + (( uint64_t)(O)<<8) \
 + (  uint64_t)(P))
 
-// To read fonts
+// To reverse all the bits in 32 bits
+#define R(B) R1(R2(R4(R8(R16(B)))))
+// To reverse all the bits in 128 bit
+#define RA(BB) R1(R2(R4(R8(R16(R32(R64(BB)))))))
+// To partially reverse bits in 128 bit
+#define RR(BB) R32(R64(BB))
+
+// To read fonts like Justine
 #define RB32(A,B,C,D,E,F,G,H) R(B32(A,B,C,D,E,F,G,H))
-#define RRBB128(A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P) RBB(BB128(A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P))
+#define RRBB128(A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P) RR(BB128(R(A),R(B),R(C),R(D),R(E),R(F),R(G),R(H),R(I),R(J),R(K),R(L),R(M),R(N),R(O),R(P)))
 
 // For debugging with a byte
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
@@ -188,7 +189,7 @@ printf("R1(2(R4(R8(R16("BYTE_TO_BINARY_PATTERN" "BYTE_TO_BINARY_PATTERN" "BYTE_T
 
   printf ("oldfull32: %x\n", oldfull32);
   printf ("R1R2R4R8R16(newfull32): %x\n", R1(R2(R4(R8(R16(newfull32))))));
-  printf ("RB(newfull32): %x\n", RB(newfull32));
+  printf ("R(newfull32): %x\n", R(newfull32));
 
 //  printf ("BB00111111: %x\n", BB00111111);
 //  printf ("BB11111100: %x\n", BB11111100);
