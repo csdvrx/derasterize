@@ -936,10 +936,8 @@ static FLOAT adjudicate(unsigned b, unsigned f, unsigned g,
     fu = lb[k * BN + f];
     for (i = 0; i < BN; ++i) p[i] = (gu & (1u << i)) ? fu : bu;
     for (i = 0; i < BN; ++i) p[i] -= lb[k * BN + i];
-    // For a minimization problem, abs can do. Much faster
-    // TODO: approximate square by bit shifting 
-    for (i = 0; i < BN; ++i) p[i] = abs(p[i]);
-    //for (i = 0; i < BN; ++i) p[i] *= p[i];
+    // For a minimization problem, abs could do, but not faster in practice
+    for (i = 0; i < BN; ++i) p[i] *= p[i];
     for (i = 0; i < BN; ++i) q[i] += p[i];
   }
   r = 0;
